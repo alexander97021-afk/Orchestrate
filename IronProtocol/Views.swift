@@ -1216,6 +1216,8 @@ private struct WorkoutLogScreen: View {
 private struct NutritionScreen: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
     @State private var showingAddFood = false
+    @State private var pendingPreset: MealPreset?
+    @State private var showingPresetConfirmation = false
 
     private var selectedPhaseBinding: Binding<String> {
         Binding(
@@ -1224,12 +1226,43 @@ private struct NutritionScreen: View {
         )
     }
 
+    private var plus100Binding: Binding<Bool> {
+        Binding(
+            get: { dataStore.isPlus100Enabled },
+            set: { dataStore.setTodayPlan(calorieAdjustmentID: $0 ? "plus-100" : "base") }
+        )
+    }
+
+    private var dayModeBinding: Binding<String> {
+        Binding(
+            get: { dataStore.todayPlan.dayModeID },
+            set: { dataStore.setTodayPlan(dayModeID: $0) }
+        )
+    }
+
     var body: some View {
         AppScreen(title: "饮食", eyebrow: "Nutrition Dashboard") {
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader("今日摄入目标", action: dataStore.todayCaloriesText)
                 PhaseSelector(selectedPhaseID: selectedPhaseBinding)
-                NutritionTargetDashboard(log: dataStore.todayNutritionLog, phaseText: dataStore.todayPhaseText)
+                NutritionTargetDashboard(
+                    log: dataStore.todayNutritionLog,
+                    phaseText: dataStore.todayPhaseText,
+                    modeText: dataStore.todayDayMode.label
+                )
+                NutritionActionPanel(
+                    plus100Enabled: plus100Binding,
+                    selectedModeID: dayModeBinding,
+                    fixedPreset: dataStore.fixedPresetForToday,
+                    beefBallPreset: dataStore.beefBallPresetForToday,
+                    hasDiversePreset: dataStore.diversePresetForToday != nil,
+                    dayMode: dataStore.todayDayMode,
+                    onApplyPreset: { queuePreset($0) },
+                    onGenerateDiverse: queueDiversePreset,
+                    onAddModeEstimate: {
+                        dataStore.addModeEstimate(for: dataStore.todayDayMode)
+                    }
+                )
             }
             .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
 
@@ -1256,25 +1289,57 @@ private struct NutritionScreen: View {
             .foregroundStyle(Color.black)
             .background(IOSTheme.accent)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-            NoteCard("第一轮先记录实际摄入并自动计算 Calories / Protein / Carbs / Fat。固定推荐食谱和 +100 kcal 调整会在下一轮接入为一键填充。")
         }
         .sheet(isPresented: $showingAddFood) {
             AddFoodEntrySheet()
                 .environmentObject(dataStore)
         }
+        .confirmationDialog("今日已有记录，如何处理？", isPresented: $showingPresetConfirmation, titleVisibility: .visible) {
+            Button("覆盖今日记录", role: .destructive) {
+                applyPendingPreset(.overwrite)
+            }
+            Button("追加到今日记录") {
+                applyPendingPreset(.append)
+            }
+            Button("取消", role: .cancel) {
+                pendingPreset = nil
+            }
+        } message: {
+            Text(pendingPreset?.name ?? "")
+        }
+    }
+
+    private func queuePreset(_ preset: MealPreset) {
+        pendingPreset = preset
+        if dataStore.hasFoodEntriesToday {
+            showingPresetConfirmation = true
+        } else {
+            applyPendingPreset(.overwrite)
+        }
+    }
+
+    private func queueDiversePreset() {
+        guard let preset = dataStore.diversePresetForToday else { return }
+        queuePreset(preset)
+    }
+
+    private func applyPendingPreset(_ mode: PresetApplyMode) {
+        guard let preset = pendingPreset else { return }
+        dataStore.applyPreset(preset, mode: mode)
+        pendingPreset = nil
     }
 }
 
 private struct NutritionTargetDashboard: View {
     let log: DailyNutritionLog
     let phaseText: String
+    let modeText: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("\(phaseText)｜\(log.target.trainingType)｜\(log.target.dietType)")
+                    Text("\(phaseText)｜\(log.target.trainingType)｜\(log.target.dietType)｜\(modeText)")
                         .font(.caption.weight(.heavy))
                         .foregroundStyle(IOSTheme.softInk)
                     Text("\(Int(log.totalCalories.rounded())) / \(Int(log.target.caloriesTarget)) kcal")
@@ -1291,6 +1356,127 @@ private struct NutritionTargetDashboard: View {
             IntakeProgressRow(title: "Protein", current: log.totalProtein, target: log.target.proteinTarget, unit: "g")
             IntakeProgressRow(title: "Carbs", current: log.totalCarbs, target: log.target.carbsTarget, unit: "g")
             IntakeProgressRow(title: "Fat", current: log.totalFat, target: log.target.fatTarget, unit: "g")
+        }
+    }
+}
+
+private struct NutritionActionPanel: View {
+    @Binding var plus100Enabled: Bool
+    @Binding var selectedModeID: String
+    let fixedPreset: MealPreset?
+    let beefBallPreset: MealPreset?
+    let hasDiversePreset: Bool
+    let dayMode: NutritionDayMode
+    let onApplyPreset: (MealPreset) -> Void
+    let onGenerateDiverse: () -> Void
+    let onAddModeEstimate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Button {
+                    if let fixedPreset {
+                        onApplyPreset(fixedPreset)
+                    }
+                } label: {
+                    Label("使用固定食谱", systemImage: "list.bullet.clipboard.fill")
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.black)
+                .background(fixedPreset == nil ? IOSTheme.softInk.opacity(0.28) : IOSTheme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .disabled(fixedPreset == nil)
+
+                Button {
+                    onGenerateDiverse()
+                } label: {
+                    Label("生成多样化食谱", systemImage: "shuffle")
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(IOSTheme.ink)
+                .background(IOSTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(IOSTheme.line, lineWidth: 1)
+                )
+                .disabled(!hasDiversePreset)
+            }
+
+            if let beefBallPreset {
+                Button {
+                    onApplyPreset(beefBallPreset)
+                } label: {
+                    Label("使用 Phase 2 牛肉丸版", systemImage: "flame.fill")
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(IOSTheme.ink)
+                .background(IOSTheme.amber.opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(IOSTheme.amber.opacity(0.34), lineWidth: 1)
+                )
+            }
+
+            HStack(spacing: 10) {
+                Toggle("+100 kcal", isOn: $plus100Enabled)
+                    .toggleStyle(.switch)
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.ink)
+
+                Spacer()
+
+                Picker("今日模式", selection: $selectedModeID) {
+                    ForEach(NutritionDayMode.allCases) { mode in
+                        Text(mode.label).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(IOSTheme.accent)
+            }
+            .padding(10)
+            .background(IOSTheme.background.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            if plus100Enabled {
+                Text("+100 kcal 已启用：目标 Calories +100、Carbs +25g；填充含生米的食谱时午餐和晚餐各 +15g 生米。")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(IOSTheme.softInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let guidance = dayMode.guidance {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(guidance)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(IOSTheme.softInk)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if dayMode == .flexible || dayMode == .plannedCheat {
+                        Button {
+                            onAddModeEstimate()
+                        } label: {
+                            Label(dayMode == .flexible ? "添加应酬餐估算" : "添加放纵餐估算", systemImage: "plus.circle")
+                                .font(.caption.weight(.heavy))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(IOSTheme.accent)
+                    }
+                }
+                .padding(10)
+                .background(IOSTheme.background.opacity(0.58))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
         }
     }
 }

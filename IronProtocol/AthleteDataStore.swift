@@ -151,6 +151,109 @@ struct DailyNutritionLog: Equatable {
     var remainingFat: Double { target.fatTarget - totalFat }
 }
 
+enum NutritionDayMode: String, Codable, CaseIterable, Identifiable {
+    case normal = "normal"
+    case missedTraining = "missed-training"
+    case flexible = "flexible"
+    case plannedCheat = "planned-cheat"
+    case rest = "rest"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .normal: return "正常训练日"
+        case .missedTraining: return "断练"
+        case .flexible: return "应酬 / 外出"
+        case .plannedCheat: return "计划内放纵餐"
+        case .rest: return "休息日"
+        }
+    }
+
+    var guidance: String? {
+        switch self {
+        case .normal:
+            return nil
+        case .missedTraining, .rest:
+            return "今日已切换为休息日摄入目标。已有记录会保留。"
+        case .flexible:
+            return "Flexible Day：早餐和午餐尽量保持高蛋白、低脂；晚餐可记录为应酬餐。第二天回归计划。"
+        case .plannedCheat:
+            return "Planned Cheat Meal：这不是违规。放纵餐后 1-3 天体重上涨通常来自水分和糖原，不作为失败判断。"
+        }
+    }
+}
+
+enum MealPresetVariant: String, Codable, CaseIterable, Identifiable {
+    case standard
+    case rice
+    case noodle
+    case beefBall
+    case diverseA
+    case diverseB
+    case weekend
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .standard: return "固定食谱"
+        case .rice: return "米饭版"
+        case .noodle: return "面条版"
+        case .beefBall: return "牛肉丸版"
+        case .diverseA: return "多样化 A"
+        case .diverseB: return "多样化 B"
+        case .weekend: return "周末口味版"
+        }
+    }
+}
+
+enum MealPresetSource: String, Codable {
+    case fixed
+    case diverse
+}
+
+enum PresetApplyMode {
+    case overwrite
+    case append
+}
+
+enum PresetTrainingGroup: String, Codable {
+    case shoulderChest
+    case backLegs
+    case rest
+
+    var label: String {
+        switch self {
+        case .shoulderChest: return "肩 / 胸"
+        case .backLegs: return "背 / 腿"
+        case .rest: return "休息"
+        }
+    }
+}
+
+struct PresetFoodAmount: Identifiable, Equatable {
+    let id = UUID()
+    let foodItemId: String
+    let amount: Double
+}
+
+struct PresetMeal: Identifiable, Equatable {
+    let id = UUID()
+    let mealType: MealType
+    let items: [PresetFoodAmount]
+}
+
+struct MealPreset: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let phaseID: String?
+    let trainingGroup: PresetTrainingGroup
+    let variant: MealPresetVariant
+    let source: MealPresetSource
+    let meals: [PresetMeal]
+}
+
 struct TrainingCalendarEntry: Codable, Identifiable, Equatable {
     var id: String { dateString }
     let dateString: String
@@ -221,19 +324,22 @@ struct TodayPlan: Codable, Equatable {
     var phaseID: String
     var recipeVariantID: String
     var calorieAdjustmentID: String
+    var dayModeID: String
 
     init(
         cycleID: Int,
         trainingDay: String,
         phaseID: String = "buffer-3-8",
         recipeVariantID: String = "chicken",
-        calorieAdjustmentID: String = "base"
+        calorieAdjustmentID: String = "base",
+        dayModeID: String = NutritionDayMode.normal.rawValue
     ) {
         self.cycleID = cycleID
         self.trainingDay = trainingDay
         self.phaseID = phaseID
         self.recipeVariantID = recipeVariantID
         self.calorieAdjustmentID = calorieAdjustmentID
+        self.dayModeID = dayModeID
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -242,6 +348,7 @@ struct TodayPlan: Codable, Equatable {
         case phaseID
         case recipeVariantID
         case calorieAdjustmentID
+        case dayModeID
     }
 
     init(from decoder: Decoder) throws {
@@ -251,6 +358,7 @@ struct TodayPlan: Codable, Equatable {
         phaseID = try container.decodeIfPresent(String.self, forKey: .phaseID) ?? "buffer-3-8"
         recipeVariantID = try container.decodeIfPresent(String.self, forKey: .recipeVariantID) ?? "chicken"
         calorieAdjustmentID = try container.decodeIfPresent(String.self, forKey: .calorieAdjustmentID) ?? "base"
+        dayModeID = try container.decodeIfPresent(String.self, forKey: .dayModeID) ?? NutritionDayMode.normal.rawValue
     }
 }
 
@@ -426,6 +534,23 @@ final class AthleteDataStore: ObservableObject {
         todayPlan.calorieAdjustmentID == "plus-100" ? "+100 kcal" : "标准"
     }
 
+    var isPlus100Enabled: Bool {
+        todayPlan.calorieAdjustmentID == "plus-100"
+    }
+
+    var todayDayMode: NutritionDayMode {
+        NutritionDayMode(rawValue: todayPlan.dayModeID) ?? .normal
+    }
+
+    var effectiveNutritionTrainingDay: String {
+        switch todayDayMode {
+        case .missedTraining, .rest:
+            return "休息"
+        case .normal, .flexible, .plannedCheat:
+            return todayPlan.trainingDay
+        }
+    }
+
     var todayCaloriesText: String {
         "\(Int(todayNutritionTarget.caloriesTarget)) kcal"
     }
@@ -440,7 +565,7 @@ final class AthleteDataStore: ObservableObject {
     }
 
     var todayNutritionTarget: DailyNutritionTarget {
-        nutritionTarget(phaseID: todayPlan.phaseID, trainingDay: todayPlan.trainingDay)
+        nutritionTarget(phaseID: todayPlan.phaseID, trainingDay: effectiveNutritionTrainingDay)
     }
 
     var todayNutritionLog: DailyNutritionLog {
@@ -450,6 +575,7 @@ final class AthleteDataStore: ObservableObject {
     func nutritionTarget(phaseID: String, trainingDay: String) -> DailyNutritionTarget {
         let dietType: String
         let isTrainingDay = trainingDay != "休息"
+        let target: DailyNutritionTarget
         switch trainingDay {
         case "肩", "胸":
             dietType = "中碳日"
@@ -461,28 +587,29 @@ final class AthleteDataStore: ObservableObject {
 
         switch phaseID {
         case "post-cut-1-2":
-            return isTrainingDay
+            target = isTrainingDay
                 ? DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2300, proteinTarget: 180, carbsTarget: 250, fatTarget: 55)
                 : DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2000, proteinTarget: 175, carbsTarget: 200, fatTarget: 60)
         case "stable-9-plus":
             switch trainingDay {
             case "肩", "胸":
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2600, proteinTarget: 190, carbsTarget: 305, fatTarget: 56)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2600, proteinTarget: 190, carbsTarget: 305, fatTarget: 56)
             case "背", "腿":
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2850, proteinTarget: 190, carbsTarget: 365, fatTarget: 57)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2850, proteinTarget: 190, carbsTarget: 365, fatTarget: 57)
             default:
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2300, proteinTarget: 178, carbsTarget: 235, fatTarget: 66)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2300, proteinTarget: 178, carbsTarget: 235, fatTarget: 66)
             }
         default:
             switch trainingDay {
             case "肩", "胸":
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2400, proteinTarget: 180, carbsTarget: 265, fatTarget: 55)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2400, proteinTarget: 180, carbsTarget: 265, fatTarget: 55)
             case "背", "腿":
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2650, proteinTarget: 190, carbsTarget: 320, fatTarget: 56)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2650, proteinTarget: 190, carbsTarget: 320, fatTarget: 56)
             default:
-                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2150, proteinTarget: 175, carbsTarget: 205, fatTarget: 65)
+                target = DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2150, proteinTarget: 175, carbsTarget: 205, fatTarget: 65)
             }
         }
+        return isPlus100Enabled ? plus100Target(from: target) : target
     }
 
     func nutritionLog(on date: Date = Date()) -> DailyNutritionLog {
@@ -496,19 +623,7 @@ final class AthleteDataStore: ObservableObject {
     func addFoodEntry(foodItem: FoodItem, mealType: MealType, amount: Double, date: Date = Date()) {
         let normalizedAmount = max(amount, 0)
         let macros = foodItem.macros(for: normalizedAmount)
-        let entry = FoodEntry(
-            id: UUID().uuidString,
-            dateString: Self.dateFormatter.string(from: date),
-            foodItemId: foodItem.id,
-            foodName: foodItem.name,
-            mealType: mealType,
-            amount: normalizedAmount,
-            unit: foodItem.unit,
-            calculatedCalories: macros.calories,
-            calculatedProtein: macros.protein,
-            calculatedCarbs: macros.carbs,
-            calculatedFat: macros.fat
-        )
+        let entry = foodEntry(foodItem: foodItem, mealType: mealType, amount: normalizedAmount, macros: macros, date: date)
         foodEntries.append(entry)
         foodEntries.sort { ($0.dateString, $0.mealType.rawValue, $0.foodName) < ($1.dateString, $1.mealType.rawValue, $1.foodName) }
         persistFoodEntries()
@@ -517,6 +632,62 @@ final class AthleteDataStore: ObservableObject {
     func deleteFoodEntry(_ entry: FoodEntry) {
         foodEntries.removeAll { $0.id == entry.id }
         persistFoodEntries()
+    }
+
+    var hasFoodEntriesToday: Bool {
+        !todayNutritionLog.entries.isEmpty
+    }
+
+    var fixedPresetForToday: MealPreset? {
+        mealPreset(source: .fixed, variant: .standard)
+    }
+
+    var beefBallPresetForToday: MealPreset? {
+        guard todayPlan.phaseID == "stable-9-plus" else { return nil }
+        return mealPreset(source: .fixed, variant: .beefBall)
+    }
+
+    var diversePresetForToday: MealPreset? {
+        let group = presetTrainingGroup(for: effectiveNutritionTrainingDay)
+        let candidates = Self.diverseMealPresets.filter { preset in
+            let phaseMatches = preset.phaseID == nil || preset.phaseID == todayPlan.phaseID
+            return phaseMatches && preset.trainingGroup == group
+        }
+        return candidates.randomElement()
+    }
+
+    func applyPreset(_ preset: MealPreset, mode: PresetApplyMode, date: Date = Date()) {
+        let key = Self.dateFormatter.string(from: date)
+        if mode == .overwrite {
+            foodEntries.removeAll { $0.dateString == key }
+        }
+
+        let libraryByID = Dictionary(uniqueKeysWithValues: foodLibrary.map { ($0.id, $0) })
+        let newEntries = preset.meals.flatMap { meal in
+            meal.items.compactMap { item -> FoodEntry? in
+                guard let food = libraryByID[item.foodItemId] else { return nil }
+                let amount = adjustedPresetAmount(item.amount, foodItemID: item.foodItemId, mealType: meal.mealType)
+                let macros = food.macros(for: amount)
+                return foodEntry(foodItem: food, mealType: meal.mealType, amount: amount, macros: macros, date: date)
+            }
+        }
+        foodEntries.append(contentsOf: newEntries)
+        foodEntries.sort { ($0.dateString, $0.mealType.rawValue, $0.foodName) < ($1.dateString, $1.mealType.rawValue, $1.foodName) }
+        persistFoodEntries()
+    }
+
+    func addModeEstimate(for mode: NutritionDayMode, date: Date = Date()) {
+        let foodID: String
+        switch mode {
+        case .flexible:
+            foodID = "business-meal-estimate"
+        case .plannedCheat:
+            foodID = "planned-cheat-meal"
+        case .normal, .missedTraining, .rest:
+            return
+        }
+        guard let food = foodLibrary.first(where: { $0.id == foodID }) else { return }
+        addFoodEntry(foodItem: food, mealType: .snack, amount: 1, date: date)
     }
 
     func saveToday(weightText: String, waistText: String) {
@@ -530,14 +701,16 @@ final class AthleteDataStore: ObservableObject {
         trainingDay: String? = nil,
         phaseID: String? = nil,
         recipeVariantID: String? = nil,
-        calorieAdjustmentID: String? = nil
+        calorieAdjustmentID: String? = nil,
+        dayModeID: String? = nil
     ) {
         todayPlan = TodayPlan(
             cycleID: cycleID ?? todayPlan.cycleID,
             trainingDay: trainingDay ?? todayPlan.trainingDay,
             phaseID: phaseID ?? todayPlan.phaseID,
             recipeVariantID: recipeVariantID ?? todayPlan.recipeVariantID,
-            calorieAdjustmentID: calorieAdjustmentID ?? todayPlan.calorieAdjustmentID
+            calorieAdjustmentID: calorieAdjustmentID ?? todayPlan.calorieAdjustmentID,
+            dayModeID: dayModeID ?? todayPlan.dayModeID
         )
         persistTodayPlan()
         if cycleID != nil || trainingDay != nil {
@@ -664,6 +837,74 @@ final class AthleteDataStore: ObservableObject {
     private func todayRecordedMealCount(on date: Date = Date()) -> Int {
         let key = Self.dateFormatter.string(from: date)
         return Set(foodEntries.filter { $0.dateString == key }.map(\.mealType)).count
+    }
+
+    private func plus100Target(from target: DailyNutritionTarget) -> DailyNutritionTarget {
+        DailyNutritionTarget(
+            phaseID: target.phaseID,
+            trainingType: target.trainingType,
+            dietType: target.dietType,
+            caloriesTarget: target.caloriesTarget + 100,
+            proteinTarget: target.proteinTarget,
+            carbsTarget: target.carbsTarget + 25,
+            fatTarget: target.fatTarget
+        )
+    }
+
+    private func adjustedPresetAmount(_ amount: Double, foodItemID: String, mealType: MealType) -> Double {
+        guard isPlus100Enabled, mealType == .lunch || mealType == .dinner else {
+            return amount
+        }
+        if foodItemID == "raw-rice" {
+            return amount + 15
+        }
+        if foodItemID == "dry-noodles" {
+            return amount + 10
+        }
+        return amount
+    }
+
+    private func foodEntry(
+        foodItem: FoodItem,
+        mealType: MealType,
+        amount: Double,
+        macros: FoodMacros,
+        date: Date
+    ) -> FoodEntry {
+        FoodEntry(
+            id: UUID().uuidString,
+            dateString: Self.dateFormatter.string(from: date),
+            foodItemId: foodItem.id,
+            foodName: foodItem.name,
+            mealType: mealType,
+            amount: amount,
+            unit: foodItem.unit,
+            calculatedCalories: macros.calories,
+            calculatedProtein: macros.protein,
+            calculatedCarbs: macros.carbs,
+            calculatedFat: macros.fat
+        )
+    }
+
+    private func mealPreset(source: MealPresetSource, variant: MealPresetVariant) -> MealPreset? {
+        let group = presetTrainingGroup(for: effectiveNutritionTrainingDay)
+        return Self.fixedMealPresets.first { preset in
+            preset.source == source &&
+            preset.variant == variant &&
+            preset.phaseID == todayPlan.phaseID &&
+            preset.trainingGroup == group
+        }
+    }
+
+    private func presetTrainingGroup(for trainingDay: String) -> PresetTrainingGroup {
+        switch trainingDay {
+        case "肩", "胸":
+            return .shoulderChest
+        case "背", "腿":
+            return .backLegs
+        default:
+            return .rest
+        }
     }
 
     private func exerciseLogKey(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> String {
@@ -808,6 +1049,294 @@ final class AthleteDataStore: ObservableObject {
         )
     }
 
+    private static func presetMeal(_ mealType: MealType, _ items: [(String, Double)]) -> PresetMeal {
+        PresetMeal(
+            mealType: mealType,
+            items: items.map { PresetFoodAmount(foodItemId: $0.0, amount: $0.1) }
+        )
+    }
+
+    private static func fixedPreset(
+        _ id: String,
+        _ name: String,
+        phaseID: String,
+        group: PresetTrainingGroup,
+        variant: MealPresetVariant = .standard,
+        breakfast: [(String, Double)],
+        lunch: [(String, Double)],
+        dinner: [(String, Double)],
+        postWorkout: [(String, Double)] = [],
+        snack: [(String, Double)]
+    ) -> MealPreset {
+        var meals = [
+            presetMeal(.breakfast, breakfast),
+            presetMeal(.lunch, lunch),
+            presetMeal(.dinner, dinner)
+        ]
+        if !postWorkout.isEmpty {
+            meals.append(presetMeal(.postWorkout, postWorkout))
+        }
+        if !snack.isEmpty {
+            meals.append(presetMeal(.snack, snack))
+        }
+        return MealPreset(
+            id: id,
+            name: name,
+            phaseID: phaseID,
+            trainingGroup: group,
+            variant: variant,
+            source: .fixed,
+            meals: meals
+        )
+    }
+
+    private static func diversePreset(
+        _ id: String,
+        _ name: String,
+        group: PresetTrainingGroup,
+        variant: MealPresetVariant,
+        phaseID: String? = nil,
+        breakfast: [(String, Double)],
+        lunch: [(String, Double)],
+        dinner: [(String, Double)],
+        postWorkout: [(String, Double)] = []
+    ) -> MealPreset {
+        var meals = [
+            presetMeal(.breakfast, breakfast),
+            presetMeal(.lunch, lunch),
+            presetMeal(.dinner, dinner)
+        ]
+        if !postWorkout.isEmpty {
+            meals.append(presetMeal(.postWorkout, postWorkout))
+        }
+        return MealPreset(
+            id: id,
+            name: name,
+            phaseID: phaseID,
+            trainingGroup: group,
+            variant: variant,
+            source: .diverse,
+            meals: meals
+        )
+    }
+
+    private static let fixedMealPresets: [MealPreset] = [
+        fixedPreset(
+            "phase0-training-standard",
+            "Phase 0｜训练日固定食谱",
+            phaseID: "post-cut-1-2",
+            group: .shoulderChest,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 100), ("chicken-breast", 220), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("chicken-breast", 220), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase0-training-standard-back-leg",
+            "Phase 0｜训练日固定食谱",
+            phaseID: "post-cut-1-2",
+            group: .backLegs,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 100), ("chicken-breast", 220), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("chicken-breast", 220), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase0-rest-standard",
+            "Phase 0｜休息日固定食谱",
+            phaseID: "post-cut-1-2",
+            group: .rest,
+            breakfast: [("oats", 50), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 90), ("chicken-breast", 220), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 90), ("chicken-breast", 220), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase1-shoulder-chest-standard",
+            "Phase 1｜肩 / 胸日固定食谱",
+            phaseID: "buffer-3-8",
+            group: .shoulderChest,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 110), ("chicken-breast", 220), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 110), ("chicken-breast", 220), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase1-back-leg-standard",
+            "Phase 1｜背 / 腿日固定食谱",
+            phaseID: "buffer-3-8",
+            group: .backLegs,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("raw-rice", 130), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 130), ("chicken-breast", 230), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase1-rest-standard",
+            "Phase 1｜休息日固定食谱",
+            phaseID: "buffer-3-8",
+            group: .rest,
+            breakfast: [("oats", 50), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 90), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 90), ("chicken-breast", 230), ("whole-egg", 2), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 25)]
+        ),
+        fixedPreset(
+            "phase2-shoulder-chest-standard",
+            "Phase 2｜肩 / 胸日固定食谱",
+            phaseID: "stable-9-plus",
+            group: .shoulderChest,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 120), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 120), ("chicken-breast", 230), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-back-leg-standard",
+            "Phase 2｜背 / 腿日固定食谱",
+            phaseID: "stable-9-plus",
+            group: .backLegs,
+            breakfast: [("oats", 80), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("raw-rice", 145), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 145), ("chicken-breast", 230), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-rest-standard",
+            "Phase 2｜休息日固定食谱",
+            phaseID: "stable-9-plus",
+            group: .rest,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 100), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("chicken-breast", 230), ("whole-egg", 2), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 25)]
+        ),
+        fixedPreset(
+            "phase2-shoulder-chest-beef-ball",
+            "Phase 2｜肩 / 胸日｜牛肉丸版",
+            phaseID: "stable-9-plus",
+            group: .shoulderChest,
+            variant: .beefBall,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 105), ("low-fat-beef-ball", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 105), ("low-fat-beef-ball", 260), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-back-leg-beef-ball",
+            "Phase 2｜背 / 腿日｜牛肉丸版",
+            phaseID: "stable-9-plus",
+            group: .backLegs,
+            variant: .beefBall,
+            breakfast: [("oats", 80), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("raw-rice", 130), ("low-fat-beef-ball", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 130), ("low-fat-beef-ball", 260), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-rest-beef-ball",
+            "Phase 2｜休息日｜牛肉丸版",
+            phaseID: "stable-9-plus",
+            group: .rest,
+            variant: .beefBall,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 85), ("low-fat-beef-ball", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 85), ("low-fat-beef-ball", 260), ("whole-egg", 2), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 25)]
+        )
+    ]
+
+    private static let diverseMealPresets: [MealPreset] = [
+        diversePreset(
+            "medium-carb-diverse-a",
+            "肩 / 胸日｜中碳多样化版 A",
+            group: .shoulderChest,
+            variant: .diverseA,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("blueberry", 100)],
+            lunch: [("raw-rice", 120), ("beef-tenderloin", 240), ("broccoli", 200)],
+            dinner: [("sweet-potato", 350), ("chicken-breast", 230), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)]
+        ),
+        diversePreset(
+            "medium-carb-diverse-b",
+            "肩 / 胸日｜中碳多样化版 B",
+            group: .shoulderChest,
+            variant: .diverseB,
+            breakfast: [("bagel", 100), ("greek-yogurt", 200), ("whole-egg", 2), ("blueberry", 100)],
+            lunch: [("pasta", 110), ("chicken-breast", 230), ("tomato", 200)],
+            dinner: [("potato", 450), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            postWorkout: [("protein-powder", 30), ("banana", 100)]
+        ),
+        diversePreset(
+            "high-carb-diverse-a",
+            "背 / 腿日｜高碳多样化版 A",
+            group: .backLegs,
+            variant: .diverseA,
+            breakfast: [("oats", 80), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("dry-noodles", 130), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 145), ("chicken-breast", 230), ("banana", 100), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)]
+        ),
+        diversePreset(
+            "high-carb-diverse-b",
+            "背 / 腿日｜高碳多样化版 B",
+            group: .backLegs,
+            variant: .diverseB,
+            breakfast: [("oats", 70), ("greek-yogurt", 200), ("honey", 15), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 140), ("pork-tenderloin", 250), ("mixed-vegetables", 200)],
+            dinner: [("pasta", 130), ("shrimp", 300), ("tomato", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)]
+        ),
+        diversePreset(
+            "rest-diverse-a",
+            "休息日｜中低碳多样化版 A",
+            group: .rest,
+            variant: .diverseA,
+            breakfast: [("oats", 60), ("greek-yogurt", 200), ("whole-egg", 2), ("egg-white", 3), ("blueberry", 100)],
+            lunch: [("potato", 400), ("chicken-breast", 230), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 80), ("beef-tenderloin", 240), ("whole-egg", 1), ("mixed-vegetables", 200)]
+        ),
+        diversePreset(
+            "rest-diverse-b",
+            "休息日｜中低碳多样化版 B",
+            group: .rest,
+            variant: .diverseB,
+            breakfast: [("whole-egg", 3), ("egg-white", 4), ("toast", 60), ("blueberry", 100)],
+            lunch: [("sweet-potato", 300), ("cod", 300), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 80), ("beef-shank", 260), ("mixed-vegetables", 200)]
+        ),
+        diversePreset(
+            "phase2-weekend-beef-ball-noodle",
+            "周末口味版｜面条 + 牛肉丸",
+            group: .shoulderChest,
+            variant: .weekend,
+            phaseID: "stable-9-plus",
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("dry-noodles", 110), ("low-fat-beef-ball", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("chicken-breast", 230), ("blueberry", 100), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)]
+        ),
+        diversePreset(
+            "phase2-weekend-beef-ball-noodle-back-leg",
+            "周末口味版｜面条 + 牛肉丸",
+            group: .backLegs,
+            variant: .weekend,
+            phaseID: "stable-9-plus",
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("dry-noodles", 110), ("low-fat-beef-ball", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("chicken-breast", 230), ("blueberry", 100), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)]
+        )
+    ]
+
     private static let defaultFoodLibrary: [FoodItem] = [
         food("chicken-breast", "鸡小胸 / 鸡胸肉", .protein, .g, 100, 110, 23, 0, 1.5, notes: "生重"),
         food("skinless-chicken-leg", "去皮鸡腿肉", .protein, .g, 100, 130, 19, 0, 6, notes: "生重"),
@@ -849,6 +1378,7 @@ final class AthleteDataStore: ObservableObject {
         food("low-fat-milk", "低脂牛奶", .dairy, .ml, 100, 50, 3.4, 5, 1.5),
         food("plain-yogurt", "无糖酸奶", .dairy, .g, 100, 65, 5, 6, 2, brandSensitive: true),
         food("greek-yogurt", "希腊酸奶", .dairy, .g, 100, 80, 10, 4, 2, brandSensitive: true),
+        food("mixed-vegetables", "蔬菜", .vegetable, .g, 100, 30, 2, 6, 0, notes: "通用蔬菜估算"),
         food("broccoli", "西兰花", .vegetable, .g, 100, 35, 3, 7, 0, notes: "生重"),
         food("spinach", "菠菜", .vegetable, .g, 100, 25, 3, 4, 0, notes: "生重"),
         food("lettuce", "生菜", .vegetable, .g, 100, 15, 1, 3, 0, notes: "生重"),
@@ -856,6 +1386,8 @@ final class AthleteDataStore: ObservableObject {
         food("tomato", "番茄", .vegetable, .g, 100, 20, 1, 4, 0, notes: "生重"),
         food("carrot", "胡萝卜", .vegetable, .g, 100, 40, 1, 9, 0, notes: "生重"),
         food("mushroom", "蘑菇", .vegetable, .g, 100, 25, 3, 4, 0, notes: "生重"),
-        food("onion", "洋葱", .vegetable, .g, 100, 40, 1, 9, 0, notes: "生重")
+        food("onion", "洋葱", .vegetable, .g, 100, 40, 1, 9, 0, notes: "生重"),
+        food("business-meal-estimate", "应酬餐估算", .mixed, .piece, 1, 800, 30, 80, 35, brandSensitive: true, notes: "1份估算"),
+        food("planned-cheat-meal", "计划内放纵餐", .mixed, .piece, 1, 1000, 35, 120, 40, brandSensitive: true, notes: "1份估算")
     ]
 }
