@@ -841,6 +841,7 @@ private struct TrainingScreen: View {
 
     var body: some View {
         AppScreen(title: "Training", eyebrow: "Workout Templates") {
+            TrainingMonthCalendar()
             CycleSelector(selectedCycleID: $selectedCycleID)
             DaySelector(selectedDay: $selectedDay)
 
@@ -886,6 +887,241 @@ private struct TrainingScreen: View {
         .onChange(of: selectedDay) { newValue in
             dataStore.setTodayPlan(cycleID: selectedCycleID, trainingDay: newValue.rawValue)
         }
+    }
+}
+
+private struct CalendarDaySlot: Identifiable {
+    let id = UUID()
+    let date: Date?
+}
+
+private struct TrainingMonthCalendar: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    @State private var monthDate = Date()
+    @State private var selectedDate = Date()
+    @State private var draftCycleID = 1
+    @State private var draftDay: TrainingDay = .back
+
+    private let calendar = Calendar.current
+    private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+
+    private var monthTitle: String {
+        Self.monthFormatter.string(from: monthDate)
+    }
+
+    private var selectedEntry: TrainingCalendarEntry? {
+        dataStore.trainingCalendarEntry(on: selectedDate)
+    }
+
+    private var daySlots: [CalendarDaySlot] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: monthDate),
+              let dayRange = calendar.range(of: .day, in: .month, for: monthDate) else { return [] }
+
+        let firstWeekday = calendar.component(.weekday, from: monthInterval.start)
+        let leadingEmptyCount = (firstWeekday + 5) % 7
+        var slots = (0..<leadingEmptyCount).map { _ in CalendarDaySlot(date: nil) }
+
+        for day in dayRange {
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: monthInterval.start) {
+                slots.append(CalendarDaySlot(date: date))
+            }
+        }
+
+        while slots.count % 7 != 0 {
+            slots.append(CalendarDaySlot(date: nil))
+        }
+        return slots
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeader("Training Calendar", action: monthTitle)
+                Spacer()
+                MonthStepButton(systemName: "chevron.left") {
+                    shiftMonth(-1)
+                }
+                MonthStepButton(systemName: "chevron.right") {
+                    shiftMonth(1)
+                }
+            }
+
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(weekdays, id: \.self) { weekday in
+                    Text(weekday)
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(IOSTheme.softInk)
+                        .frame(maxWidth: .infinity)
+                }
+
+                ForEach(daySlots) { slot in
+                    if let date = slot.date {
+                        TrainingCalendarDayCell(
+                            date: date,
+                            entry: dataStore.trainingCalendarEntry(on: date),
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                            isToday: calendar.isDateInToday(date)
+                        ) {
+                            select(date)
+                        }
+                    } else {
+                        Color.clear
+                            .frame(height: 50)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(Self.dayFormatter.string(from: selectedDate))
+                        .font(.headline.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                    Spacer()
+                    StatusPill(selectedEntry == nil ? "未记录" : "已记录", color: selectedEntry == nil ? IOSTheme.amber : IOSTheme.green)
+                }
+
+                CycleSelector(selectedCycleID: $draftCycleID)
+                DaySelector(selectedDay: $draftDay)
+
+                Button {
+                    dataStore.saveTrainingCalendarEntry(
+                        date: selectedDate,
+                        cycleID: draftCycleID,
+                        trainingDay: draftDay.rawValue
+                    )
+                    if calendar.isDateInToday(selectedDate) {
+                        dataStore.setTodayPlan(cycleID: draftCycleID, trainingDay: draftDay.rawValue)
+                    }
+                } label: {
+                    Label("Save Day Plan", systemImage: "calendar.badge.checkmark")
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.black)
+                .background(IOSTheme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .padding(10)
+            .background(IOSTheme.background.opacity(0.46))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
+        .onAppear {
+            select(Date())
+        }
+    }
+
+    private func select(_ date: Date) {
+        selectedDate = date
+        if let entry = dataStore.trainingCalendarEntry(on: date) {
+            draftCycleID = entry.cycleID
+            draftDay = TrainingDay(rawValue: entry.trainingDay) ?? .back
+        } else if calendar.isDateInToday(date) {
+            draftCycleID = dataStore.todayPlan.cycleID
+            draftDay = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
+        } else {
+            draftCycleID = 1
+            draftDay = .rest
+        }
+    }
+
+    private func shiftMonth(_ value: Int) {
+        monthDate = calendar.date(byAdding: .month, value: value, to: monthDate) ?? monthDate
+        if !calendar.isDate(selectedDate, equalTo: monthDate, toGranularity: .month),
+           let monthStart = calendar.dateInterval(of: .month, for: monthDate)?.start {
+            select(monthStart)
+        }
+    }
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEEE"
+        return formatter
+    }()
+}
+
+private struct TrainingCalendarDayCell: View {
+    let date: Date
+    let entry: TrainingCalendarEntry?
+    let isSelected: Bool
+    let isToday: Bool
+    let onSelect: () -> Void
+
+    private var dayNumber: String {
+        "\(Calendar.current.component(.day, from: date))"
+    }
+
+    private var label: String {
+        guard let entry else { return "" }
+        return entry.trainingDay == "休息" ? "休" : "C\(entry.cycleID) \(entry.trainingDay)"
+    }
+
+    private var fill: Color {
+        if isSelected { return IOSTheme.accent.opacity(0.18) }
+        if entry != nil { return IOSTheme.surfaceRaised }
+        return IOSTheme.surface
+    }
+
+    private var border: Color {
+        if isSelected { return IOSTheme.accent.opacity(0.65) }
+        if isToday { return IOSTheme.green.opacity(0.5) }
+        return IOSTheme.line
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(spacing: 4) {
+                Text(dayNumber)
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(isToday ? IOSTheme.green : IOSTheme.ink)
+                Text(label.isEmpty ? " " : label)
+                    .font(.caption2.weight(.heavy))
+                    .foregroundStyle(entry == nil ? IOSTheme.softInk.opacity(0.25) : IOSTheme.softInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(fill)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MonthStepButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(IOSTheme.ink)
+                .frame(width: 30, height: 30)
+                .background(IOSTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(IOSTheme.line, lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 

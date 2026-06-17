@@ -20,6 +20,13 @@ struct NutritionDayLog: Codable, Identifiable, Equatable {
     var completedMealIDs: Set<String>
 }
 
+struct TrainingCalendarEntry: Codable, Identifiable, Equatable {
+    var id: String { dateString }
+    let dateString: String
+    var cycleID: Int
+    var trainingDay: String
+}
+
 struct ExerciseSetLog: Codable, Identifiable, Equatable {
     let id: String
     var targetReps: String
@@ -120,12 +127,14 @@ struct TodayPlan: Codable, Equatable {
 final class AthleteDataStore: ObservableObject {
     @Published private(set) var bodyEntries: [BodyEntry] = []
     @Published private(set) var nutritionLogs: [NutritionDayLog] = []
+    @Published private(set) var trainingCalendarEntries: [TrainingCalendarEntry] = []
     @Published private(set) var exerciseLogs: [ExerciseLog] = []
     @Published private(set) var todayPlan = TodayPlan(cycleID: 1, trainingDay: "背")
 
     private let defaults: UserDefaults
     private let bodyEntriesKey = "orchestrate.bodyEntries"
     private let nutritionLogsKey = "orchestrate.nutritionLogs"
+    private let trainingCalendarKey = "orchestrate.trainingCalendarEntries"
     private let exerciseLogsKey = "orchestrate.exerciseLogs"
     private let todayPlanKey = "orchestrate.todayPlan"
     private let calendar = Calendar.current
@@ -354,6 +363,26 @@ final class AthleteDataStore: ObservableObject {
             calorieAdjustmentID: calorieAdjustmentID ?? todayPlan.calorieAdjustmentID
         )
         persistTodayPlan()
+        if cycleID != nil || trainingDay != nil {
+            saveTrainingCalendarEntry(date: Date(), cycleID: todayPlan.cycleID, trainingDay: todayPlan.trainingDay)
+        }
+    }
+
+    func trainingCalendarEntry(on date: Date) -> TrainingCalendarEntry? {
+        let key = Self.dateFormatter.string(from: date)
+        return trainingCalendarEntries.first { $0.dateString == key }
+    }
+
+    func saveTrainingCalendarEntry(date: Date, cycleID: Int, trainingDay: String) {
+        let key = Self.dateFormatter.string(from: date)
+        if let index = trainingCalendarEntries.firstIndex(where: { $0.dateString == key }) {
+            trainingCalendarEntries[index].cycleID = cycleID
+            trainingCalendarEntries[index].trainingDay = trainingDay
+        } else {
+            trainingCalendarEntries.append(TrainingCalendarEntry(dateString: key, cycleID: cycleID, trainingDay: trainingDay))
+        }
+        trainingCalendarEntries.sort { $0.dateString < $1.dateString }
+        persistTrainingCalendar()
     }
 
     func isMealCompleted(_ mealID: String, on date: Date = Date()) -> Bool {
@@ -501,6 +530,13 @@ final class AthleteDataStore: ObservableObject {
             nutritionLogs = []
         }
 
+        if let data = defaults.data(forKey: trainingCalendarKey),
+           let decoded = try? JSONDecoder().decode([TrainingCalendarEntry].self, from: data) {
+            trainingCalendarEntries = decoded.sorted { $0.dateString < $1.dateString }
+        } else {
+            trainingCalendarEntries = []
+        }
+
         if let data = defaults.data(forKey: exerciseLogsKey),
            let decoded = try? JSONDecoder().decode([ExerciseLog].self, from: data) {
             exerciseLogs = decoded
@@ -524,6 +560,11 @@ final class AthleteDataStore: ObservableObject {
     private func persistNutrition() {
         guard let data = try? JSONEncoder().encode(nutritionLogs) else { return }
         defaults.set(data, forKey: nutritionLogsKey)
+    }
+
+    private func persistTrainingCalendar() {
+        guard let data = try? JSONEncoder().encode(trainingCalendarEntries) else { return }
+        defaults.set(data, forKey: trainingCalendarKey)
     }
 
     private func persistExerciseLogs() {
