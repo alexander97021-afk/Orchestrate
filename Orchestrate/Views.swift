@@ -10,11 +10,11 @@ private func dismissKeyboard() {
 }
 
 private enum AthleteTab: String, CaseIterable {
-    case today = "Today"
-    case training = "Train"
-    case nutrition = "Food"
-    case progress = "Progress"
-    case templates = "Setup"
+    case today = "今日"
+    case training = "训练"
+    case nutrition = "饮食"
+    case progress = "趋势"
+    case templates = "设置"
 
     var systemImage: String {
         switch self {
@@ -38,11 +38,11 @@ private enum TrainingDay: String, CaseIterable, Identifiable {
 
     var englishName: String {
         switch self {
-        case .shoulders: return "Shoulders"
-        case .back: return "Back"
-        case .chest: return "Chest"
-        case .legs: return "Legs"
-        case .rest: return "Rest"
+        case .shoulders: return "肩"
+        case .back: return "背"
+        case .chest: return "胸"
+        case .legs: return "腿"
+        case .rest: return "休息"
         }
     }
 }
@@ -173,7 +173,7 @@ private enum AthleteSeed {
     static let cycles: [WorkoutCycle] = [
         WorkoutCycle(
             id: 1,
-            name: "Cycle 1",
+            name: "C1",
             dayTemplates: [
                 WorkoutDayTemplate(day: .shoulders, exercises: [
                     exercise("c1-shoulder-db-lateral", "哑铃嘎吱侧平举", "20 / 16 / 12 / 10 / 8", "5 / 6 / 7 / 8 / 9kg"),
@@ -234,7 +234,7 @@ private enum AthleteSeed {
         ),
         WorkoutCycle(
             id: 2,
-            name: "Cycle 2",
+            name: "C2",
             dayTemplates: [
                 WorkoutDayTemplate(day: .shoulders, exercises: [
                     exercise("c2-shoulder-side-lying-cable-lateral", "侧卧上斜单臂拉力器侧平举", "15 / 12 / 10 / 8"),
@@ -295,7 +295,7 @@ private enum AthleteSeed {
         ),
         WorkoutCycle(
             id: 3,
-            name: "Cycle 3",
+            name: "C3",
             dayTemplates: [
                 WorkoutDayTemplate(day: .shoulders, exercises: [
                     exercise("c3-shoulder-side-lying-db-lateral", "侧卧上斜双臂哑铃侧平举", "12 / 10 / 8"),
@@ -354,7 +354,7 @@ private enum AthleteSeed {
         ),
         WorkoutCycle(
             id: 4,
-            name: "Cycle 4",
+            name: "C4",
             dayTemplates: [
                 WorkoutDayTemplate(day: .shoulders, exercises: [
                     exercise("c4-shoulder-db-lateral-combo-press", "哑铃侧平举 + 坐姿杠铃组合推举", "12 / 10 / 8", note: "下半程颈前，中半程颈后，全程颈前", combo: true),
@@ -646,7 +646,7 @@ private struct TodayDashboard: View {
     @Binding var selectedTab: AthleteTab
 
     var body: some View {
-        AppScreen(title: "Today", eyebrow: "6月16日 周二 · Phase 1 · Week 4") {
+        AppScreen(title: "今日", eyebrow: "今日训练与饮食") {
             TodayPlanPicker()
             HeroCard()
             DashboardGrid {
@@ -667,22 +667,22 @@ private struct HeroCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
-                StatusPill("Cycle \(dataStore.todayPlan.cycleID)")
+                StatusPill("C\(dataStore.todayPlan.cycleID)")
                 Spacer()
                 StatusPill(dataStore.todayDietTypeText, color: IOSTheme.accent)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(selectedDay.englishName) Day / \(dataStore.todayCaloriesText)")
+                Text("\(selectedDay.rawValue)日 / \(dataStore.todayCaloriesText)")
                     .font(.system(size: 28, weight: .heavy, design: .rounded))
                     .foregroundStyle(IOSTheme.ink)
-                Text("今日目标：\(dataStore.todayPhaseText) · \(selectedDay == .rest ? "恢复日" : "Cycle \(dataStore.todayPlan.cycleID) \(selectedDay.rawValue)训练") · \(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText) · \(dataStore.todayCalorieAdjustmentText)。")
+                Text("今日目标：\(dataStore.todayPhaseText) · \(selectedDay == .rest ? "恢复日" : "C\(dataStore.todayPlan.cycleID) \(selectedDay.rawValue)训练") · \(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText) · \(dataStore.todayCalorieAdjustmentText)。")
                     .font(.footnote)
                     .foregroundStyle(IOSTheme.ink.opacity(0.78))
             }
             HStack(spacing: 9) {
-                HeroStat(value: dataStore.todayMacroTargets.protein, label: "protein g")
-                HeroStat(value: dataStore.todayMacroTargets.carbs, label: "carbs g")
-                HeroStat(value: dataStore.todayMacroTargets.fat, label: "fat g")
+                HeroStat(value: dataStore.todayMacroTargets.protein, label: "蛋白质 g")
+                HeroStat(value: dataStore.todayMacroTargets.carbs, label: "碳水 g")
+                HeroStat(value: dataStore.todayMacroTargets.fat, label: "脂肪 g")
             }
         }
         .athleteCard(
@@ -727,7 +727,7 @@ private struct TodayPlanPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader("Today Plan", action: dataStore.todayPhaseText)
+            SectionHeader("今日计划", action: dataStore.todayPhaseText)
             PhaseSelector(selectedPhaseID: selectedPhaseBinding)
             CycleSelector(selectedCycleID: selectedCycleBinding)
             DaySelector(selectedDay: selectedDayBinding)
@@ -765,8 +765,8 @@ private struct DashboardGrid: View {
     var body: some View {
         VStack(spacing: 10) {
             DashboardCard(
-                eyebrow: "Today's Workout",
-                title: todayDay == .rest ? "Rest Day" : "C\(dataStore.todayPlan.cycleID) · \(todayDay.rawValue) · \(todayTemplate?.exercises.count ?? 0) 动作",
+                eyebrow: "今日训练",
+                title: todayDay == .rest ? "休息日" : "C\(dataStore.todayPlan.cycleID) · \(todayDay.rawValue) · \(todayTemplate?.exercises.count ?? 0) 动作",
                 description: todayDay == .rest
                     ? "今天不安排力量训练，执行恢复日饮食模板。"
                     : todayTemplate.map {
@@ -776,26 +776,26 @@ private struct DashboardGrid: View {
                             exerciseIDs: $0.exercises.map(\.id)
                         )
                     } ?? "等待补充训练模板。",
-                action: todayDay == .rest ? nil : "Start Workout",
+                action: todayDay == .rest ? nil : "开始训练",
                 onAction: todayDay == .rest ? nil : onStartWorkout
             )
             HStack(spacing: 10) {
                 DashboardCard(
-                    eyebrow: "Nutrition",
+                    eyebrow: "饮食",
                     title: "\(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText)",
                     description: dataStore.nutritionCompletionRate(for: todayMeals.map(\.id)) >= 1
                         ? "今日饮食模板已完成。"
                         : "\(dataStore.todayCaloriesText) · \(dataStore.nutritionCompletionText(for: todayMeals.map(\.id)))。训练日变化后，饮食类型会跟随切换。"
                 )
                 DashboardCard(
-                    eyebrow: "Body Trend",
-                    title: "\(dataStore.formattedWeight(dataStore.sevenDayAverageWeight)) avg",
+                    eyebrow: "身体趋势",
+                    title: "\(dataStore.formattedWeight(dataStore.sevenDayAverageWeight)) 均重",
                     description: "\(dataStore.formattedDelta(dataStore.twoWeekWeightDelta)) · \(dataStore.trendStatusText)。\(dataStore.coachInsightText)"
                 )
             }
             HStack(spacing: 10) {
-                DashboardCard(eyebrow: "Weekly Execution", title: "3/5 workouts", description: "饮食模板 86%，步数均值 8.2k，放纵餐 0/1。")
-                DashboardCard(eyebrow: "Coach Insight", title: "Pending", description: "体重偏低且力量无提升，建议启用 Phase 1 +100 kcal。")
+                DashboardCard(eyebrow: "本周执行", title: "3/5 次训练", description: "饮食模板 86%，步数均值 8.2k，放纵餐 0/1。")
+                DashboardCard(eyebrow: "教练建议", title: "待判断", description: "体重偏低且力量无提升，建议启用当前阶段 +100 kcal。")
             }
         }
     }
@@ -818,7 +818,7 @@ private struct MealCompactCard: View {
                 dataStore.toggleMeal(meals[0].id)
             }
             Divider().overlay(IOSTheme.line)
-            MealRow(meal: meals[1], isDone: dataStore.isMealCompleted(meals[1].id), statusText: "next") {
+            MealRow(meal: meals[1], isDone: dataStore.isMealCompleted(meals[1].id), statusText: "下一餐") {
                 dataStore.toggleMeal(meals[1].id)
             }
         }
@@ -830,6 +830,7 @@ private struct TrainingScreen: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
     @State private var selectedCycleID = 1
     @State private var selectedDay: TrainingDay = .back
+    @State private var selectedCalendarDate = Date()
 
     private var selectedCycle: WorkoutCycle {
         AthleteSeed.cycles.first { $0.id == selectedCycleID } ?? AthleteSeed.cycles[0]
@@ -840,10 +841,22 @@ private struct TrainingScreen: View {
     }
 
     var body: some View {
-        AppScreen(title: "Training", eyebrow: "Workout Templates") {
-            TrainingMonthCalendar()
+        AppScreen(title: "训练", eyebrow: "训练模板") {
+            TrainingMonthCalendar(selectedDate: $selectedCalendarDate) { date in
+                if let entry = dataStore.trainingCalendarEntry(on: date) {
+                    selectedCycleID = entry.cycleID
+                    selectedDay = TrainingDay(rawValue: entry.trainingDay) ?? .back
+                } else if Calendar.current.isDateInToday(date) {
+                    selectedCycleID = dataStore.todayPlan.cycleID
+                    selectedDay = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
+                } else {
+                    selectedCycleID = 1
+                    selectedDay = .rest
+                }
+            }
             CycleSelector(selectedCycleID: $selectedCycleID)
             DaySelector(selectedDay: $selectedDay)
+            SaveDayPlanButton(date: selectedCalendarDate, cycleID: selectedCycleID, day: selectedDay)
 
             if selectedDay == .rest {
                 RestDayTrainingCard()
@@ -875,19 +888,46 @@ private struct TrainingScreen: View {
                 )
             }
 
-            NoteCard("Cycle 1-4 动作模板已录入。当前按每个动作的目标组数逐组记录实际重量和次数；目标肌群暂不作为记录字段。")
+            NoteCard("C1-C4 动作模板已录入。当前按每个动作的目标组数逐组记录实际重量和次数；目标肌群暂不作为记录字段。")
         }
         .onAppear {
+            selectedCalendarDate = Date()
             selectedCycleID = dataStore.todayPlan.cycleID
             selectedDay = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
         }
-        .onChange(of: selectedCycleID) { newValue in
-            dataStore.setTodayPlan(cycleID: newValue, trainingDay: selectedDay.rawValue)
-        }
-        .onChange(of: selectedDay) { newValue in
-            dataStore.setTodayPlan(cycleID: selectedCycleID, trainingDay: newValue.rawValue)
-        }
     }
+}
+
+private struct SaveDayPlanButton: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    let date: Date
+    let cycleID: Int
+    let day: TrainingDay
+
+    var body: some View {
+        Button {
+            dataStore.saveTrainingCalendarEntry(date: date, cycleID: cycleID, trainingDay: day.rawValue)
+            if Calendar.current.isDateInToday(date) {
+                dataStore.setTodayPlan(cycleID: cycleID, trainingDay: day.rawValue)
+            }
+        } label: {
+                    Label("\(Self.dayFormatter.string(from: date)) 保存训练安排", systemImage: "calendar.badge.checkmark")
+                .font(.caption.weight(.heavy))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.black)
+        .background(IOSTheme.accent)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
 }
 
 private struct CalendarDaySlot: Identifiable {
@@ -897,10 +937,9 @@ private struct CalendarDaySlot: Identifiable {
 
 private struct TrainingMonthCalendar: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
+    @Binding var selectedDate: Date
+    let onDateSelected: (Date) -> Void
     @State private var monthDate = Date()
-    @State private var selectedDate = Date()
-    @State private var draftCycleID = 1
-    @State private var draftDay: TrainingDay = .back
 
     private let calendar = Calendar.current
     private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
@@ -937,7 +976,7 @@ private struct TrainingMonthCalendar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                SectionHeader("Training Calendar", action: monthTitle)
+                SectionHeader("训练月历", action: monthTitle)
                 Spacer()
                 MonthStepButton(systemName: "chevron.left") {
                     shiftMonth(-1)
@@ -971,42 +1010,13 @@ private struct TrainingMonthCalendar: View {
                     }
                 }
             }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(Self.dayFormatter.string(from: selectedDate))
-                        .font(.headline.weight(.heavy))
-                        .foregroundStyle(IOSTheme.ink)
-                    Spacer()
-                    StatusPill(selectedEntry == nil ? "未记录" : "已记录", color: selectedEntry == nil ? IOSTheme.amber : IOSTheme.green)
-                }
-
-                CycleSelector(selectedCycleID: $draftCycleID)
-                DaySelector(selectedDay: $draftDay)
-
-                Button {
-                    dataStore.saveTrainingCalendarEntry(
-                        date: selectedDate,
-                        cycleID: draftCycleID,
-                        trainingDay: draftDay.rawValue
-                    )
-                    if calendar.isDateInToday(selectedDate) {
-                        dataStore.setTodayPlan(cycleID: draftCycleID, trainingDay: draftDay.rawValue)
-                    }
-                } label: {
-                    Label("Save Day Plan", systemImage: "calendar.badge.checkmark")
-                        .font(.caption.weight(.heavy))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.black)
-                .background(IOSTheme.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            HStack {
+                Text(Self.dayFormatter.string(from: selectedDate))
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.ink)
+                Spacer()
+                StatusPill(selectedEntry == nil ? "未记录" : "已记录", color: selectedEntry == nil ? IOSTheme.amber : IOSTheme.green)
             }
-            .padding(10)
-            .background(IOSTheme.background.opacity(0.46))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
         .onAppear {
@@ -1016,16 +1026,7 @@ private struct TrainingMonthCalendar: View {
 
     private func select(_ date: Date) {
         selectedDate = date
-        if let entry = dataStore.trainingCalendarEntry(on: date) {
-            draftCycleID = entry.cycleID
-            draftDay = TrainingDay(rawValue: entry.trainingDay) ?? .back
-        } else if calendar.isDateInToday(date) {
-            draftCycleID = dataStore.todayPlan.cycleID
-            draftDay = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
-        } else {
-            draftCycleID = 1
-            draftDay = .rest
-        }
+        onDateSelected(date)
     }
 
     private func shiftMonth(_ value: Int) {
@@ -1128,7 +1129,7 @@ private struct MonthStepButton: View {
 private struct RestDayTrainingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Rest Day")
+            Text("休息日")
                 .font(.headline.weight(.heavy))
                 .foregroundStyle(IOSTheme.ink)
             Text("今天不安排力量训练。保留步数、拉伸、恢复状态和休息日饮食模板。")
@@ -1149,7 +1150,7 @@ private struct TrainingSummaryCard: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Today's Log")
+                Text("今日记录")
                     .font(.caption2.weight(.heavy))
                     .foregroundStyle(IOSTheme.softInk)
                 Text(title)
@@ -1240,17 +1241,25 @@ private struct NutritionScreen: View {
         )
     }
 
+    private var selectedPhaseBinding: Binding<String> {
+        Binding(
+            get: { dataStore.todayPlan.phaseID },
+            set: { dataStore.setTodayPlan(phaseID: $0) }
+        )
+    }
+
     var body: some View {
-        AppScreen(title: "Nutrition", eyebrow: "Template Nutrition") {
+        AppScreen(title: "饮食", eyebrow: "模板饮食") {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ChoiceCard(title: "Phase", value: dataStore.todayPhaseText, active: true)
-                ChoiceCard(title: "Version", value: dataStore.todayRecipeVariantText, active: true)
-                ChoiceCard(title: "Day type", value: dataStore.todayDietTypeText, active: true)
-                ChoiceCard(title: "Adjustment", value: dataStore.todayCalorieAdjustmentText, active: dataStore.todayPlan.calorieAdjustmentID == "plus-100")
+                ChoiceCard(title: "阶段", value: dataStore.todayPhaseText, active: true)
+                ChoiceCard(title: "版本", value: dataStore.todayRecipeVariantText, active: true)
+                ChoiceCard(title: "日型", value: dataStore.todayDietTypeText, active: true)
+                ChoiceCard(title: "调整", value: dataStore.todayCalorieAdjustmentText, active: dataStore.todayPlan.calorieAdjustmentID == "plus-100")
             }
 
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader("Recipe Version", action: dataStore.todayCaloriesText)
+                SectionHeader("食谱选择", action: dataStore.todayCaloriesText)
+                PhaseSelector(selectedPhaseID: selectedPhaseBinding)
                 RecipeVariantSelector(selectedVariantID: selectedVariantBinding, phaseID: dataStore.todayPlan.phaseID)
                 CalorieAdjustmentSelector(selectedAdjustmentID: selectedAdjustmentBinding)
             }
@@ -1287,7 +1296,7 @@ private struct ProgressScreen: View {
     @State private var waistText = ""
 
     var body: some View {
-        AppScreen(title: "Trend", eyebrow: "Progress") {
+        AppScreen(title: "趋势", eyebrow: "身体数据") {
             BodyInputCard(weightText: $weightText, waistText: $waistText) {
                 dataStore.saveToday(weightText: weightText, waistText: waistText)
             }
@@ -1301,23 +1310,23 @@ private struct ProgressScreen: View {
 
             VStack(spacing: 0) {
                 MetricRow(
-                    title: "Body Weight Trend",
+                    title: "体重趋势",
                     value: "7 日平均 \(dataStore.formattedWeight(dataStore.sevenDayAverageWeight))",
                     status: dataStore.formattedDelta(dataStore.twoWeekWeightDelta),
                     statusColor: dataStore.trendStatusText == "正常" ? IOSTheme.green : IOSTheme.amber
                 )
                 Divider().overlay(IOSTheme.line)
-                MetricRow(title: "2 Week Delta", value: dataStore.formattedDelta(dataStore.twoWeekWeightDelta), status: dataStore.trendStatusText, statusColor: dataStore.trendStatusText == "正常" ? IOSTheme.green : IOSTheme.amber)
+                MetricRow(title: "两周变化", value: dataStore.formattedDelta(dataStore.twoWeekWeightDelta), status: dataStore.trendStatusText, statusColor: dataStore.trendStatusText == "正常" ? IOSTheme.green : IOSTheme.amber)
                 Divider().overlay(IOSTheme.line)
-                MetricRow(title: "Performance", value: "主要动作无明显提升", status: "观察", statusColor: IOSTheme.amber)
+                MetricRow(title: "训练表现", value: "主要动作无明显提升", status: "观察", statusColor: IOSTheme.amber)
                 Divider().overlay(IOSTheme.line)
-                MetricRow(title: "Gain Rate", value: dataStore.formattedGainRate(dataStore.monthlyGainRate), status: "月速率", statusColor: IOSTheme.amber)
+                MetricRow(title: "增重速度", value: dataStore.formattedGainRate(dataStore.monthlyGainRate), status: "月速率", statusColor: IOSTheme.amber)
             }
             .athleteCard()
 
             CoachInsightCard(text: dataStore.coachInsightText)
-            PlaceholderCard(title: "Phase Timeline", description: "Cut End -> Phase 1 -> +100 kcal。确认调整后，时间线会标记为 +100 kcal adjustment。", ready: true)
-            PlaceholderCard(title: "Physique Gallery", description: "每周照片占位：正面 / 侧面 / 背面 / 自媒体精选照。")
+            PlaceholderCard(title: "阶段时间线", description: "减脂结束 -> 缓冲期 -> +100 kcal。确认调整后，时间线会标记为热量调整。", ready: true)
+            PlaceholderCard(title: "体型照片", description: "每周照片占位：正面 / 侧面 / 背面 / 自媒体精选照。")
         }
         .onAppear {
             weightText = dataStore.todayEntry?.weightKg.map { String(format: "%.1f", $0) } ?? ""
@@ -1328,7 +1337,7 @@ private struct ProgressScreen: View {
 
 private struct TemplatesScreen: View {
     var body: some View {
-        AppScreen(title: "Templates", eyebrow: "Setup") {
+        AppScreen(title: "模板", eyebrow: "设置") {
             ForEach(AthleteSeed.cycles) { cycle in
                 let exerciseCount = cycle.dayTemplates.reduce(0) { $0 + $1.exercises.count }
                 PlaceholderCard(
@@ -1339,8 +1348,8 @@ private struct TemplatesScreen: View {
             }
 
             PlaceholderCard(
-                title: "Nutrition Templates",
-                description: "Phase 0 / Phase 1 / Phase 1 +100 kcal / Phase 2 / Phase 2 +100 kcal 将在这里编辑。"
+                title: "饮食模板",
+                description: "减脂后1-2周 / 3-8周缓冲 / 9周后稳定增肌 / +100 kcal 将在这里编辑。"
             )
         }
     }
@@ -1537,7 +1546,7 @@ private struct ExerciseRow: View {
                     .foregroundStyle(IOSTheme.ink)
                 Spacer()
                 if exercise.isCombo {
-                    StatusPill("Combo", color: IOSTheme.amber)
+                    StatusPill("组合", color: IOSTheme.amber)
                 }
             }
             HStack(spacing: 8) {
@@ -1551,7 +1560,7 @@ private struct ExerciseRow: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
-                    Text("SET")
+                    Text("组")
                         .frame(width: 34, alignment: .leading)
                     Text("目标")
                         .frame(width: 58, alignment: .leading)
@@ -1603,7 +1612,7 @@ private struct ExerciseRow: View {
                     save()
                     dismissKeyboard()
                 } label: {
-                    Label(isDone ? "Completed" : "Mark Done", systemImage: isDone ? "checkmark.circle.fill" : "circle")
+                    Label(isDone ? "已完成" : "标记完成", systemImage: isDone ? "checkmark.circle.fill" : "circle")
                         .font(.caption.weight(.heavy))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -1617,7 +1626,7 @@ private struct ExerciseRow: View {
                     save()
                     dismissKeyboard()
                 } label: {
-                    Text("Save")
+                    Text("保存")
                         .font(.caption.weight(.heavy))
                         .frame(width: 74)
                         .padding(.vertical, 10)
@@ -1693,7 +1702,7 @@ private struct TrainingSetLogRow: View {
                 .keyboardType(.numbersAndPunctuation)
                 .trainingSetInputStyle()
 
-            TextField("reps", text: $setLog.repsText)
+            TextField("次数", text: $setLog.repsText)
                 .keyboardType(.numbersAndPunctuation)
                 .trainingSetInputStyle()
 
@@ -1771,7 +1780,7 @@ private struct MealRow: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
-                Text(statusText ?? (isDone ? "done" : "待吃"))
+                Text(statusText ?? (isDone ? "已完成" : "待吃"))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(isDone ? IOSTheme.green : IOSTheme.softInk)
             }
@@ -1790,7 +1799,7 @@ private struct MacroTargetCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Daily Target")
+            Text("全天目标")
                 .font(.caption2.weight(.heavy))
                 .foregroundStyle(IOSTheme.softInk)
             Text(calories)
@@ -1850,7 +1859,7 @@ private struct BodyInputCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Daily Check-in")
+            Text("今日记录")
                 .font(.caption2.weight(.heavy))
                 .foregroundStyle(IOSTheme.softInk)
             HStack(spacing: 10) {
@@ -1903,7 +1912,7 @@ private struct WeightChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Body Weight Trend")
+            Text("体重趋势")
                 .font(.caption2.weight(.heavy))
                 .foregroundStyle(IOSTheme.softInk)
             if points.isEmpty {
@@ -2058,12 +2067,12 @@ private struct ChoiceCard: View {
 }
 
 private struct CoachInsightCard: View {
-    var text = "两周均重增长偏低，建议启用 Phase 1 背/腿 +100 kcal 米饭版；点击确认后再套用。"
+    var text = "两周均重增长偏低，建议启用当前阶段背/腿 +100 kcal 米饭版；点击确认后再套用。"
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 7) {
-                Text("Coach Insight")
+                Text("教练建议")
                     .font(.headline.weight(.heavy))
                     .foregroundStyle(IOSTheme.ink)
                 Text(text)
@@ -2071,7 +2080,7 @@ private struct CoachInsightCard: View {
                     .foregroundStyle(IOSTheme.softInk)
             }
             Spacer()
-            StatusPill("Confirm", color: IOSTheme.amber)
+            StatusPill("确认", color: IOSTheme.amber)
         }
         .athleteCard(border: IOSTheme.amber.opacity(0.35), fill: IOSTheme.amber.opacity(0.10))
     }
@@ -2084,7 +2093,7 @@ private struct PlaceholderCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(ready ? "Ready" : "Placeholder")
+            Text(ready ? "已就绪" : "占位")
                 .font(.caption2.weight(.heavy))
                 .foregroundStyle(IOSTheme.softInk)
             Text(title)
