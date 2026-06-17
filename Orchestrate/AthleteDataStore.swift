@@ -81,17 +81,29 @@ struct TodayPlan: Codable, Equatable {
     var cycleID: Int
     var trainingDay: String
     var phaseID: String
+    var recipeVariantID: String
+    var calorieAdjustmentID: String
 
-    init(cycleID: Int, trainingDay: String, phaseID: String = "buffer-3-8") {
+    init(
+        cycleID: Int,
+        trainingDay: String,
+        phaseID: String = "buffer-3-8",
+        recipeVariantID: String = "chicken",
+        calorieAdjustmentID: String = "base"
+    ) {
         self.cycleID = cycleID
         self.trainingDay = trainingDay
         self.phaseID = phaseID
+        self.recipeVariantID = recipeVariantID
+        self.calorieAdjustmentID = calorieAdjustmentID
     }
 
     private enum CodingKeys: String, CodingKey {
         case cycleID
         case trainingDay
         case phaseID
+        case recipeVariantID
+        case calorieAdjustmentID
     }
 
     init(from decoder: Decoder) throws {
@@ -99,6 +111,8 @@ struct TodayPlan: Codable, Equatable {
         cycleID = try container.decode(Int.self, forKey: .cycleID)
         trainingDay = try container.decode(String.self, forKey: .trainingDay)
         phaseID = try container.decodeIfPresent(String.self, forKey: .phaseID) ?? "buffer-3-8"
+        recipeVariantID = try container.decodeIfPresent(String.self, forKey: .recipeVariantID) ?? "chicken"
+        calorieAdjustmentID = try container.decodeIfPresent(String.self, forKey: .calorieAdjustmentID) ?? "base"
     }
 }
 
@@ -220,6 +234,16 @@ final class AthleteDataStore: ObservableObject {
         Double(min(completedMealCount(), todayMealCount)) / Double(todayMealCount)
     }
 
+    func nutritionCompletionText(for mealIDs: [String], on date: Date = Date()) -> String {
+        let completed = completedMealCount(for: mealIDs, on: date)
+        return "\(completed) / \(mealIDs.count) 餐次"
+    }
+
+    func nutritionCompletionRate(for mealIDs: [String], on date: Date = Date()) -> Double {
+        guard !mealIDs.isEmpty else { return 0 }
+        return Double(completedMealCount(for: mealIDs, on: date)) / Double(mealIDs.count)
+    }
+
     var todayPhaseText: String {
         switch todayPlan.phaseID {
         case "post-cut-1-2":
@@ -242,52 +266,69 @@ final class AthleteDataStore: ObservableObject {
         }
     }
 
+    var todayRecipeVariantText: String {
+        switch todayPlan.recipeVariantID {
+        case "beef":
+            return "带牛肉"
+        case "beef-ball":
+            return todayPlan.phaseID == "stable-9-plus" ? "牛肉丸版" : "带牛肉"
+        default:
+            return "纯鸡胸"
+        }
+    }
+
+    var todayCalorieAdjustmentText: String {
+        todayPlan.calorieAdjustmentID == "plus-100" ? "+100 kcal" : "标准"
+    }
+
     var todayCaloriesText: String {
+        let suffix = todayPlan.calorieAdjustmentID == "plus-100" ? " +100" : ""
         switch todayPlan.phaseID {
         case "post-cut-1-2":
             return todayPlan.trainingDay == "休息" ? "无练后餐" : "过渡模板"
         case "stable-9-plus":
             switch todayPlan.trainingDay {
             case "肩", "胸":
-                return "2700 kcal"
+                return "2700\(suffix) kcal"
             case "背", "腿":
-                return "2950 kcal"
+                return "2950\(suffix) kcal"
             default:
-                return "2400 kcal"
+                return "2400\(suffix) kcal"
             }
         default:
             switch todayPlan.trainingDay {
             case "肩", "胸":
-                return "2500 kcal"
+                return "2500\(suffix) kcal"
             case "背", "腿":
-                return "2750 kcal"
+                return "2750\(suffix) kcal"
             default:
-                return "2250 kcal"
+                return "2250\(suffix) kcal"
             }
         }
     }
 
     var todayMacroTargets: (protein: String, carbs: String, fat: String) {
+        let carbBoost = todayPlan.calorieAdjustmentID == "plus-100" ? 25 : 0
         switch todayPlan.phaseID {
         case "post-cut-1-2":
-            return todayPlan.trainingDay == "休息" ? ("P 175", "C 190", "F 60") : ("P 175", "C 240", "F 55")
+            return todayPlan.trainingDay == "休息" ? ("P 175", "C \(190 + carbBoost)", "F 60") : ("P 175", "C \(240 + carbBoost)", "F 55")
         case "stable-9-plus":
             switch todayPlan.trainingDay {
             case "肩", "胸":
-                return ("P 185", "C 335", "F 55")
+                return ("P 185", "C \(335 + carbBoost)", "F 55")
             case "背", "腿":
-                return ("P 190", "C 370", "F 55")
+                return ("P 190", "C \(370 + carbBoost)", "F 55")
             default:
-                return ("P 185", "C 245", "F 65")
+                return ("P 185", "C \(245 + carbBoost)", "F 65")
             }
         default:
             switch todayPlan.trainingDay {
             case "肩", "胸":
-                return ("P 180", "C 300", "F 55")
+                return ("P 180", "C \(300 + carbBoost)", "F 55")
             case "背", "腿":
-                return ("P 185", "C 335", "F 55")
+                return ("P 185", "C \(335 + carbBoost)", "F 55")
             default:
-                return ("P 180", "C 220", "F 65")
+                return ("P 180", "C \(220 + carbBoost)", "F 65")
             }
         }
     }
@@ -298,11 +339,19 @@ final class AthleteDataStore: ObservableObject {
         upsert(date: Date(), weightKg: weight, waistCm: waist)
     }
 
-    func setTodayPlan(cycleID: Int? = nil, trainingDay: String? = nil, phaseID: String? = nil) {
+    func setTodayPlan(
+        cycleID: Int? = nil,
+        trainingDay: String? = nil,
+        phaseID: String? = nil,
+        recipeVariantID: String? = nil,
+        calorieAdjustmentID: String? = nil
+    ) {
         todayPlan = TodayPlan(
             cycleID: cycleID ?? todayPlan.cycleID,
             trainingDay: trainingDay ?? todayPlan.trainingDay,
-            phaseID: phaseID ?? todayPlan.phaseID
+            phaseID: phaseID ?? todayPlan.phaseID,
+            recipeVariantID: recipeVariantID ?? todayPlan.recipeVariantID,
+            calorieAdjustmentID: calorieAdjustmentID ?? todayPlan.calorieAdjustmentID
         )
         persistTodayPlan()
     }
@@ -398,6 +447,12 @@ final class AthleteDataStore: ObservableObject {
     private func completedMealCount(on date: Date = Date()) -> Int {
         let key = Self.dateFormatter.string(from: date)
         return nutritionLogs.first { $0.dateString == key }?.completedMealIDs.count ?? 0
+    }
+
+    private func completedMealCount(for mealIDs: [String], on date: Date = Date()) -> Int {
+        let key = Self.dateFormatter.string(from: date)
+        let completedIDs = nutritionLogs.first { $0.dateString == key }?.completedMealIDs ?? []
+        return mealIDs.filter { completedIDs.contains($0) }.count
     }
 
     private func exerciseLogKey(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> String {

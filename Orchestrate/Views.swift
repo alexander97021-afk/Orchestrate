@@ -71,6 +71,36 @@ private enum NutritionPhase: String, CaseIterable, Identifiable {
     }
 }
 
+private enum RecipeVariant: String, CaseIterable, Identifiable {
+    case chicken = "chicken"
+    case beef = "beef"
+    case beefBall = "beef-ball"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .chicken: return "纯鸡胸"
+        case .beef: return "带牛肉"
+        case .beefBall: return "牛肉丸"
+        }
+    }
+}
+
+private enum CalorieAdjustment: String, CaseIterable, Identifiable {
+    case base = "base"
+    case plus100 = "plus-100"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .base: return "标准"
+        case .plus100: return "+100 kcal"
+        }
+    }
+}
+
 private struct WorkoutCycle: Identifiable {
     let id: Int
     let name: String
@@ -404,73 +434,141 @@ private enum AthleteSeed {
         )
     }
 
-    static let meals: [MealTemplate] = [
-        MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 70g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 15g"]),
-        MealTemplate(id: "lunch", name: "午餐", foods: ["生米 145g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "蔬菜"]),
-        MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 145g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "全蛋 1 个"]),
-        MealTemplate(id: "post-workout", name: "练后", foods: ["吐司 2 片", "蛋白粉 30g"])
-    ]
+    static func meals(
+        for day: TrainingDay,
+        phaseID: String,
+        variantID: String,
+        calorieAdjustmentID: String
+    ) -> [MealTemplate] {
+        let variant = RecipeVariant(rawValue: variantID) ?? .chicken
+        let resolvedVariant = phaseID == "stable-9-plus" ? variant : (variant == .beefBall ? .beef : variant)
+        let needsPlus100 = calorieAdjustmentID == CalorieAdjustment.plus100.rawValue
+        let idPrefix = "\(phaseID)-\(day.rawValue)-\(resolvedVariant.rawValue)-\(calorieAdjustmentID)"
+        let meals: [MealTemplate]
 
-    static func meals(for day: TrainingDay, phaseID: String) -> [MealTemplate] {
         switch phaseID {
         case "post-cut-1-2":
             if day == .rest {
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 100g", "鸡小胸 220g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 100g", "鸡小胸 220g", "全蛋 1 个", "蔬菜"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
+                    meal(idPrefix, "lunch", "午餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "蔬菜"]),
+                    meal(idPrefix, "dinner", "晚餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "全蛋 1 个", "蔬菜"])
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             }
-            return [
-                MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
-                MealTemplate(id: "lunch", name: "午餐", foods: ["生米 100g", "鸡小胸 220g", "蔬菜"]),
-                MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 100g", "鸡小胸 220g", "全蛋 1 个", "蔬菜"]),
-                MealTemplate(id: "post-workout", name: "练后", foods: ["吐司 2 片", "蛋白粉 30g"])
+            meals = [
+                meal(idPrefix, "breakfast", "早餐", ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
+                meal(idPrefix, "lunch", "午餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "蔬菜"]),
+                meal(idPrefix, "dinner", "晚餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "全蛋 1 个", "蔬菜"]),
+                meal(idPrefix, "post-workout", "练后", ["吐司 2 片", "蛋白粉 30g"])
             ]
+            return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
         case "stable-9-plus":
             switch day {
             case .shoulders, .chest:
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 70g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 135g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 135g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "全蛋 1 个"]),
-                    MealTemplate(id: "post-workout", name: "练后", foods: ["吐司 2 片", "蛋白粉 30g"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 70g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
+                    meal(idPrefix, "lunch", "午餐", stableLunchDinnerFoods(rice: 120, beefBallRice: 105, variant: resolvedVariant, includesEgg: false)),
+                    meal(idPrefix, "dinner", "晚餐", stableLunchDinnerFoods(rice: 120, beefBallRice: 105, variant: resolvedVariant, includesEgg: true, oil: "20g")),
+                    meal(idPrefix, "post-workout", "练后", ["吐司 2 片", "蛋白粉 30g"])
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             case .back, .legs:
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 80g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 15g"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 160g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 160g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "全蛋 1 个"]),
-                    MealTemplate(id: "post-workout", name: "练后", foods: ["吐司 2 片", "蛋白粉 30g"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 80g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 15g"]),
+                    meal(idPrefix, "lunch", "午餐", stableLunchDinnerFoods(rice: 145, beefBallRice: 130, variant: resolvedVariant, includesEgg: false)),
+                    meal(idPrefix, "dinner", "晚餐", stableLunchDinnerFoods(rice: 145, beefBallRice: 130, variant: resolvedVariant, includesEgg: true, oil: "20g")),
+                    meal(idPrefix, "post-workout", "练后", ["吐司 2 片", "蛋白粉 30g"])
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             case .rest:
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 110g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 110g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "全蛋 2 个"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个"]),
+                    meal(idPrefix, "lunch", "午餐", stableLunchDinnerFoods(rice: 100, beefBallRice: 85, variant: resolvedVariant, includesEgg: false)),
+                    meal(idPrefix, "dinner", "晚餐", stableLunchDinnerFoods(rice: 100, beefBallRice: 85, variant: resolvedVariant, includesEgg: true, eggCount: 2, oil: "25g"))
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             }
         default:
             switch day {
             case .shoulders, .chest:
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 125g", "鸡小胸 220g / 牛腱 250g / 牛里脊 235g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 125g", "鸡小胸 220g / 牛腱 250g / 牛里脊 235g", "全蛋 1 个"]),
-                    MealTemplate(id: "post-workout", name: "练后", foods: ["吐司 2 片", "蛋白粉 30g"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 60g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 10g"]),
+                    meal(idPrefix, "lunch", "午餐", ["生米 125g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "蔬菜"]),
+                    meal(idPrefix, "dinner", "晚餐", ["生米 125g", protein(for: resolvedVariant, chicken: "鸡小胸 220g", beef: "牛腱 250g / 牛里脊 235g"), "全蛋 1 个", "蔬菜"]),
+                    meal(idPrefix, "post-workout", "练后", ["吐司 2 片", "蛋白粉 30g"])
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             case .back, .legs:
-                return meals
-            case .rest:
-                return [
-                    MealTemplate(id: "breakfast", name: "早餐", foods: ["燕麦 50g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个"]),
-                    MealTemplate(id: "lunch", name: "午餐", foods: ["生米 100g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "蔬菜"]),
-                    MealTemplate(id: "dinner", name: "晚餐", foods: ["生米 100g", "鸡小胸 230g / 牛腱 260g / 牛里脊 245g", "全蛋 2 个"])
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 70g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个", "蜂蜜 15g"]),
+                    meal(idPrefix, "lunch", "午餐", ["生米 145g", protein(for: resolvedVariant, chicken: "鸡小胸 230g", beef: "牛腱 260g / 牛里脊 245g"), "蔬菜"]),
+                    meal(idPrefix, "dinner", "晚餐", ["生米 145g", protein(for: resolvedVariant, chicken: "鸡小胸 230g", beef: "牛腱 260g / 牛里脊 245g"), "全蛋 1 个", "蔬菜"]),
+                    meal(idPrefix, "post-workout", "练后", ["吐司 2 片", "蛋白粉 30g"])
                 ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
+            case .rest:
+                meals = [
+                    meal(idPrefix, "breakfast", "早餐", ["燕麦 50g", "脱脂奶 250ml", "全蛋 2 个", "蛋清 3 个"]),
+                    meal(idPrefix, "lunch", "午餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 230g", beef: "牛腱 260g / 牛里脊 245g"), "蔬菜"]),
+                    meal(idPrefix, "dinner", "晚餐", ["生米 100g", protein(for: resolvedVariant, chicken: "鸡小胸 230g", beef: "牛腱 260g / 牛里脊 245g"), "全蛋 2 个", "蔬菜"])
+                ]
+                return applyCalorieAdjustmentIfNeeded(meals, needsPlus100: needsPlus100)
             }
         }
     }
 
+    private static func meal(_ prefix: String, _ id: String, _ name: String, _ foods: [String]) -> MealTemplate {
+        MealTemplate(id: "\(prefix)-\(id)", name: name, foods: foods)
+    }
+
+    private static func protein(for variant: RecipeVariant, chicken: String, beef: String) -> String {
+        switch variant {
+        case .chicken:
+            return chicken
+        case .beef, .beefBall:
+            return beef
+        }
+    }
+
+    private static func stableLunchDinnerFoods(
+        rice: Int,
+        beefBallRice: Int,
+        variant: RecipeVariant,
+        includesEgg: Bool,
+        eggCount: Int = 1,
+        oil: String? = nil
+    ) -> [String] {
+        var foods: [String]
+        switch variant {
+        case .beefBall:
+            foods = ["生米 \(beefBallRice)g", "牛肉丸 260g"]
+        case .beef:
+            foods = ["生米 \(rice)g", "牛腱 260g / 牛里脊 245g"]
+        case .chicken:
+            foods = ["生米 \(rice)g", "鸡小胸 230g"]
+        }
+        if includesEgg {
+            foods.append("全蛋 \(eggCount) 个")
+        }
+        foods.append("蔬菜")
+        if let oil {
+            foods.append("用油 \(oil)")
+        }
+        return foods
+    }
+
+    private static func applyCalorieAdjustmentIfNeeded(_ meals: [MealTemplate], needsPlus100: Bool) -> [MealTemplate] {
+        guard needsPlus100 else { return meals }
+        return meals.map { meal in
+            guard meal.name == "午餐" else { return meal }
+            return MealTemplate(
+                id: meal.id,
+                name: meal.name,
+                foods: meal.foods + ["+100 kcal：午/晚餐合计加生米 25g"]
+            )
+        }
+    }
 }
 
 struct IOSRootView: View {
@@ -577,7 +675,7 @@ private struct HeroCard: View {
                 Text("\(selectedDay.englishName) Day / \(dataStore.todayCaloriesText)")
                     .font(.system(size: 28, weight: .heavy, design: .rounded))
                     .foregroundStyle(IOSTheme.ink)
-                Text("今日目标：\(dataStore.todayPhaseText) · \(selectedDay == .rest ? "恢复日" : "Cycle \(dataStore.todayPlan.cycleID) \(selectedDay.rawValue)训练") · \(dataStore.todayDietTypeText)模板。")
+                Text("今日目标：\(dataStore.todayPhaseText) · \(selectedDay == .rest ? "恢复日" : "Cycle \(dataStore.todayPlan.cycleID) \(selectedDay.rawValue)训练") · \(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText) · \(dataStore.todayCalorieAdjustmentText)。")
                     .font(.footnote)
                     .foregroundStyle(IOSTheme.ink.opacity(0.78))
             }
@@ -655,6 +753,15 @@ private struct DashboardGrid: View {
         TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
     }
 
+    private var todayMeals: [MealTemplate] {
+        AthleteSeed.meals(
+            for: todayDay,
+            phaseID: dataStore.todayPlan.phaseID,
+            variantID: dataStore.todayPlan.recipeVariantID,
+            calorieAdjustmentID: dataStore.todayPlan.calorieAdjustmentID
+        )
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             DashboardCard(
@@ -675,10 +782,10 @@ private struct DashboardGrid: View {
             HStack(spacing: 10) {
                 DashboardCard(
                     eyebrow: "Nutrition",
-                    title: "\(dataStore.todayDietTypeText) · \(dataStore.todayNutritionCompletionText)",
-                    description: dataStore.todayNutritionCompletionRate >= 1
+                    title: "\(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText)",
+                    description: dataStore.nutritionCompletionRate(for: todayMeals.map(\.id)) >= 1
                         ? "今日饮食模板已完成。"
-                        : "\(dataStore.todayCaloriesText)。训练日变化后，饮食类型会跟随切换。"
+                        : "\(dataStore.todayCaloriesText) · \(dataStore.nutritionCompletionText(for: todayMeals.map(\.id)))。训练日变化后，饮食类型会跟随切换。"
                 )
                 DashboardCard(
                     eyebrow: "Body Trend",
@@ -699,7 +806,9 @@ private struct MealCompactCard: View {
     private var meals: [MealTemplate] {
         AthleteSeed.meals(
             for: TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back,
-            phaseID: dataStore.todayPlan.phaseID
+            phaseID: dataStore.todayPlan.phaseID,
+            variantID: dataStore.todayPlan.recipeVariantID,
+            calorieAdjustmentID: dataStore.todayPlan.calorieAdjustmentID
         )
     }
 
@@ -873,17 +982,43 @@ private struct NutritionScreen: View {
         TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
     }
     private var meals: [MealTemplate] {
-        AthleteSeed.meals(for: selectedDay, phaseID: dataStore.todayPlan.phaseID)
+        AthleteSeed.meals(
+            for: selectedDay,
+            phaseID: dataStore.todayPlan.phaseID,
+            variantID: dataStore.todayPlan.recipeVariantID,
+            calorieAdjustmentID: dataStore.todayPlan.calorieAdjustmentID
+        )
+    }
+
+    private var selectedVariantBinding: Binding<String> {
+        Binding(
+            get: { dataStore.todayPlan.recipeVariantID },
+            set: { dataStore.setTodayPlan(recipeVariantID: $0) }
+        )
+    }
+
+    private var selectedAdjustmentBinding: Binding<String> {
+        Binding(
+            get: { dataStore.todayPlan.calorieAdjustmentID },
+            set: { dataStore.setTodayPlan(calorieAdjustmentID: $0) }
+        )
     }
 
     var body: some View {
         AppScreen(title: "Nutrition", eyebrow: "Template Nutrition") {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ChoiceCard(title: "Phase", value: dataStore.todayPhaseText, active: true)
-                ChoiceCard(title: "Carb base", value: "米饭版", active: false)
+                ChoiceCard(title: "Version", value: dataStore.todayRecipeVariantText, active: true)
                 ChoiceCard(title: "Day type", value: dataStore.todayDietTypeText, active: true)
-                ChoiceCard(title: "Calories", value: dataStore.todayCaloriesText, active: true)
+                ChoiceCard(title: "Adjustment", value: dataStore.todayCalorieAdjustmentText, active: dataStore.todayPlan.calorieAdjustmentID == "plus-100")
             }
+
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader("Recipe Version", action: dataStore.todayCaloriesText)
+                RecipeVariantSelector(selectedVariantID: selectedVariantBinding, phaseID: dataStore.todayPlan.phaseID)
+                CalorieAdjustmentSelector(selectedAdjustmentID: selectedAdjustmentBinding)
+            }
+            .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
 
             CoachInsightCard()
             MacroTargetCard(
@@ -905,7 +1040,7 @@ private struct NutritionScreen: View {
             }
             .athleteCard()
 
-            NoteCard("如果下周腰围增长过快，系统会优先建议回调休息日碳水，而不是直接降低训练日摄入。")
+            NoteCard("牛肉丸版目前按你补充的图片录入，仅适用于 9周后稳定增肌。+100 kcal 先按午/晚餐合计增加生米 25g 执行。")
         }
     }
 }
@@ -1001,6 +1136,64 @@ private struct PhaseSelector: View {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(selectedPhaseID == phase.rawValue ? IOSTheme.accent.opacity(0.5) : IOSTheme.line, lineWidth: 1)
                     )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct RecipeVariantSelector: View {
+    @Binding var selectedVariantID: String
+    let phaseID: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(RecipeVariant.allCases) { variant in
+                let isEnabled = variant != .beefBall || phaseID == "stable-9-plus"
+                let isSelected = selectedVariantID == variant.rawValue && isEnabled
+                Button {
+                    selectedVariantID = variant.rawValue
+                } label: {
+                    Text(variant.label)
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(isSelected ? IOSTheme.accent.opacity(0.12) : IOSTheme.surface)
+                        .foregroundStyle(isEnabled ? (isSelected ? IOSTheme.ink : IOSTheme.softInk) : IOSTheme.softInk.opacity(0.35))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(isSelected ? IOSTheme.accent.opacity(0.5) : IOSTheme.line, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!isEnabled)
+            }
+        }
+    }
+}
+
+private struct CalorieAdjustmentSelector: View {
+    @Binding var selectedAdjustmentID: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(CalorieAdjustment.allCases) { adjustment in
+                Button {
+                    selectedAdjustmentID = adjustment.rawValue
+                } label: {
+                    Text(adjustment.label)
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(selectedAdjustmentID == adjustment.rawValue ? IOSTheme.accent.opacity(0.12) : IOSTheme.surface)
+                        .foregroundStyle(selectedAdjustmentID == adjustment.rawValue ? IOSTheme.ink : IOSTheme.softInk)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(selectedAdjustmentID == adjustment.rawValue ? IOSTheme.accent.opacity(0.5) : IOSTheme.line, lineWidth: 1)
+                        )
                 }
                 .buttonStyle(.plain)
             }
