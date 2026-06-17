@@ -20,6 +20,137 @@ struct NutritionDayLog: Codable, Identifiable, Equatable {
     var completedMealIDs: Set<String>
 }
 
+enum FoodCategory: String, Codable, CaseIterable, Identifiable {
+    case protein
+    case carb
+    case fat
+    case dairy
+    case vegetable
+    case fruit
+    case mixed
+    case supplement
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .protein: return "蛋白质"
+        case .carb: return "碳水"
+        case .fat: return "脂肪"
+        case .dairy: return "乳制品"
+        case .vegetable: return "蔬菜"
+        case .fruit: return "水果"
+        case .mixed: return "混合"
+        case .supplement: return "补剂"
+        }
+    }
+}
+
+enum FoodUnit: String, Codable, CaseIterable, Identifiable {
+    case g
+    case ml
+    case piece
+    case slice
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .g: return "g"
+        case .ml: return "ml"
+        case .piece: return "个"
+        case .slice: return "片"
+        }
+    }
+}
+
+enum MealType: String, Codable, CaseIterable, Identifiable {
+    case breakfast = "早餐"
+    case lunch = "午餐"
+    case dinner = "晚餐"
+    case postWorkout = "练后"
+    case snack = "加餐"
+
+    var id: String { rawValue }
+}
+
+struct FoodMacros: Codable, Equatable {
+    var calories: Double
+    var protein: Double
+    var carbs: Double
+    var fat: Double
+}
+
+struct FoodItem: Codable, Identifiable, Equatable {
+    let id: String
+    var name: String
+    var category: FoodCategory
+    var unit: FoodUnit
+    var defaultServing: Double
+    var caloriesPer100: Double
+    var proteinPer100: Double
+    var carbsPer100: Double
+    var fatPer100: Double
+    var isEditable: Bool
+    var isBrandSensitive: Bool
+    var notes: String
+
+    func macros(for amount: Double) -> FoodMacros {
+        let multiplier: Double
+        switch unit {
+        case .g, .ml:
+            multiplier = amount / 100
+        case .piece, .slice:
+            multiplier = amount / max(defaultServing, 1)
+        }
+        return FoodMacros(
+            calories: caloriesPer100 * multiplier,
+            protein: proteinPer100 * multiplier,
+            carbs: carbsPer100 * multiplier,
+            fat: fatPer100 * multiplier
+        )
+    }
+}
+
+struct FoodEntry: Codable, Identifiable, Equatable {
+    let id: String
+    let dateString: String
+    let foodItemId: String
+    var foodName: String
+    var mealType: MealType
+    var amount: Double
+    var unit: FoodUnit
+    var calculatedCalories: Double
+    var calculatedProtein: Double
+    var calculatedCarbs: Double
+    var calculatedFat: Double
+}
+
+struct DailyNutritionTarget: Equatable {
+    var phaseID: String
+    var trainingType: String
+    var dietType: String
+    var caloriesTarget: Double
+    var proteinTarget: Double
+    var carbsTarget: Double
+    var fatTarget: Double
+}
+
+struct DailyNutritionLog: Equatable {
+    var dateString: String
+    var entries: [FoodEntry]
+    var target: DailyNutritionTarget
+
+    var totalCalories: Double { entries.reduce(0) { $0 + $1.calculatedCalories } }
+    var totalProtein: Double { entries.reduce(0) { $0 + $1.calculatedProtein } }
+    var totalCarbs: Double { entries.reduce(0) { $0 + $1.calculatedCarbs } }
+    var totalFat: Double { entries.reduce(0) { $0 + $1.calculatedFat } }
+    var remainingCalories: Double { target.caloriesTarget - totalCalories }
+    var remainingProtein: Double { target.proteinTarget - totalProtein }
+    var remainingCarbs: Double { target.carbsTarget - totalCarbs }
+    var remainingFat: Double { target.fatTarget - totalFat }
+}
+
 struct TrainingCalendarEntry: Codable, Identifiable, Equatable {
     var id: String { dateString }
     let dateString: String
@@ -127,6 +258,7 @@ struct TodayPlan: Codable, Equatable {
 final class AthleteDataStore: ObservableObject {
     @Published private(set) var bodyEntries: [BodyEntry] = []
     @Published private(set) var nutritionLogs: [NutritionDayLog] = []
+    @Published private(set) var foodEntries: [FoodEntry] = []
     @Published private(set) var trainingCalendarEntries: [TrainingCalendarEntry] = []
     @Published private(set) var exerciseLogs: [ExerciseLog] = []
     @Published private(set) var todayPlan = TodayPlan(cycleID: 1, trainingDay: "背")
@@ -134,6 +266,7 @@ final class AthleteDataStore: ObservableObject {
     private let defaults: UserDefaults
     private let bodyEntriesKey = "ironprotocol.bodyEntries"
     private let nutritionLogsKey = "ironprotocol.nutritionLogs"
+    private let foodEntriesKey = "ironprotocol.foodEntries"
     private let trainingCalendarKey = "ironprotocol.trainingCalendarEntries"
     private let exerciseLogsKey = "ironprotocol.exerciseLogs"
     private let todayPlanKey = "ironprotocol.todayPlan"
@@ -235,22 +368,25 @@ final class AthleteDataStore: ObservableObject {
     }
 
     var todayNutritionCompletionText: String {
-        let completed = completedMealCount()
+        let completed = todayRecordedMealCount()
         return "\(min(completed, todayMealCount)) / \(todayMealCount) 餐次"
     }
 
     var todayNutritionCompletionRate: Double {
-        Double(min(completedMealCount(), todayMealCount)) / Double(todayMealCount)
+        Double(min(todayRecordedMealCount(), todayMealCount)) / Double(todayMealCount)
     }
 
     func nutritionCompletionText(for mealIDs: [String], on date: Date = Date()) -> String {
-        let completed = completedMealCount(for: mealIDs, on: date)
-        return "\(completed) / \(mealIDs.count) 餐次"
+        let targetCount = mealIDs.isEmpty ? todayMealCount : mealIDs.count
+        let completed = max(todayRecordedMealCount(on: date), completedMealCount(for: mealIDs, on: date))
+        return "\(min(completed, targetCount)) / \(targetCount) 餐次"
     }
 
     func nutritionCompletionRate(for mealIDs: [String], on date: Date = Date()) -> Double {
-        guard !mealIDs.isEmpty else { return 0 }
-        return Double(completedMealCount(for: mealIDs, on: date)) / Double(mealIDs.count)
+        let targetCount = mealIDs.isEmpty ? todayMealCount : mealIDs.count
+        guard targetCount > 0 else { return 0 }
+        let completed = max(todayRecordedMealCount(on: date), completedMealCount(for: mealIDs, on: date))
+        return Double(min(completed, targetCount)) / Double(targetCount)
     }
 
     var todayPhaseText: String {
@@ -291,55 +427,96 @@ final class AthleteDataStore: ObservableObject {
     }
 
     var todayCaloriesText: String {
-        let suffix = todayPlan.calorieAdjustmentID == "plus-100" ? " +100" : ""
-        switch todayPlan.phaseID {
+        "\(Int(todayNutritionTarget.caloriesTarget)) kcal"
+    }
+
+    var todayMacroTargets: (protein: String, carbs: String, fat: String) {
+        let target = todayNutritionTarget
+        return ("P \(Int(target.proteinTarget))", "C \(Int(target.carbsTarget))", "F \(Int(target.fatTarget))")
+    }
+
+    var foodLibrary: [FoodItem] {
+        Self.defaultFoodLibrary
+    }
+
+    var todayNutritionTarget: DailyNutritionTarget {
+        nutritionTarget(phaseID: todayPlan.phaseID, trainingDay: todayPlan.trainingDay)
+    }
+
+    var todayNutritionLog: DailyNutritionLog {
+        nutritionLog(on: Date())
+    }
+
+    func nutritionTarget(phaseID: String, trainingDay: String) -> DailyNutritionTarget {
+        let dietType: String
+        let isTrainingDay = trainingDay != "休息"
+        switch trainingDay {
+        case "肩", "胸":
+            dietType = "中碳日"
+        case "背", "腿":
+            dietType = "高碳日"
+        default:
+            dietType = "中低碳日"
+        }
+
+        switch phaseID {
         case "post-cut-1-2":
-            return todayPlan.trainingDay == "休息" ? "无练后餐" : "过渡模板"
+            return isTrainingDay
+                ? DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2300, proteinTarget: 180, carbsTarget: 250, fatTarget: 55)
+                : DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2000, proteinTarget: 175, carbsTarget: 200, fatTarget: 60)
         case "stable-9-plus":
-            switch todayPlan.trainingDay {
+            switch trainingDay {
             case "肩", "胸":
-                return "2700\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2600, proteinTarget: 190, carbsTarget: 305, fatTarget: 56)
             case "背", "腿":
-                return "2950\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2850, proteinTarget: 190, carbsTarget: 365, fatTarget: 57)
             default:
-                return "2400\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2300, proteinTarget: 178, carbsTarget: 235, fatTarget: 66)
             }
         default:
-            switch todayPlan.trainingDay {
+            switch trainingDay {
             case "肩", "胸":
-                return "2500\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2400, proteinTarget: 180, carbsTarget: 265, fatTarget: 55)
             case "背", "腿":
-                return "2750\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2650, proteinTarget: 190, carbsTarget: 320, fatTarget: 56)
             default:
-                return "2250\(suffix) kcal"
+                return DailyNutritionTarget(phaseID: phaseID, trainingType: trainingDay, dietType: dietType, caloriesTarget: 2150, proteinTarget: 175, carbsTarget: 205, fatTarget: 65)
             }
         }
     }
 
-    var todayMacroTargets: (protein: String, carbs: String, fat: String) {
-        let carbBoost = todayPlan.calorieAdjustmentID == "plus-100" ? 25 : 0
-        switch todayPlan.phaseID {
-        case "post-cut-1-2":
-            return todayPlan.trainingDay == "休息" ? ("P 175", "C \(190 + carbBoost)", "F 60") : ("P 175", "C \(240 + carbBoost)", "F 55")
-        case "stable-9-plus":
-            switch todayPlan.trainingDay {
-            case "肩", "胸":
-                return ("P 185", "C \(335 + carbBoost)", "F 55")
-            case "背", "腿":
-                return ("P 190", "C \(370 + carbBoost)", "F 55")
-            default:
-                return ("P 185", "C \(245 + carbBoost)", "F 65")
-            }
-        default:
-            switch todayPlan.trainingDay {
-            case "肩", "胸":
-                return ("P 180", "C \(300 + carbBoost)", "F 55")
-            case "背", "腿":
-                return ("P 185", "C \(335 + carbBoost)", "F 55")
-            default:
-                return ("P 180", "C \(220 + carbBoost)", "F 65")
-            }
-        }
+    func nutritionLog(on date: Date = Date()) -> DailyNutritionLog {
+        let key = Self.dateFormatter.string(from: date)
+        let entries = foodEntries
+            .filter { $0.dateString == key }
+            .sorted { $0.mealType.rawValue < $1.mealType.rawValue }
+        return DailyNutritionLog(dateString: key, entries: entries, target: todayNutritionTarget)
+    }
+
+    func addFoodEntry(foodItem: FoodItem, mealType: MealType, amount: Double, date: Date = Date()) {
+        let normalizedAmount = max(amount, 0)
+        let macros = foodItem.macros(for: normalizedAmount)
+        let entry = FoodEntry(
+            id: UUID().uuidString,
+            dateString: Self.dateFormatter.string(from: date),
+            foodItemId: foodItem.id,
+            foodName: foodItem.name,
+            mealType: mealType,
+            amount: normalizedAmount,
+            unit: foodItem.unit,
+            calculatedCalories: macros.calories,
+            calculatedProtein: macros.protein,
+            calculatedCarbs: macros.carbs,
+            calculatedFat: macros.fat
+        )
+        foodEntries.append(entry)
+        foodEntries.sort { ($0.dateString, $0.mealType.rawValue, $0.foodName) < ($1.dateString, $1.mealType.rawValue, $1.foodName) }
+        persistFoodEntries()
+    }
+
+    func deleteFoodEntry(_ entry: FoodEntry) {
+        foodEntries.removeAll { $0.id == entry.id }
+        persistFoodEntries()
     }
 
     func saveToday(weightText: String, waistText: String) {
@@ -484,6 +661,11 @@ final class AthleteDataStore: ObservableObject {
         return mealIDs.filter { completedIDs.contains($0) }.count
     }
 
+    private func todayRecordedMealCount(on date: Date = Date()) -> Int {
+        let key = Self.dateFormatter.string(from: date)
+        return Set(foodEntries.filter { $0.dateString == key }.map(\.mealType)).count
+    }
+
     private func exerciseLogKey(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> String {
         "\(Self.dateFormatter.string(from: date))|cycle-\(cycleID)|\(day)|\(exerciseID)"
     }
@@ -530,6 +712,13 @@ final class AthleteDataStore: ObservableObject {
             nutritionLogs = []
         }
 
+        if let data = defaults.data(forKey: foodEntriesKey),
+           let decoded = try? JSONDecoder().decode([FoodEntry].self, from: data) {
+            foodEntries = decoded.sorted { ($0.dateString, $0.mealType.rawValue, $0.foodName) < ($1.dateString, $1.mealType.rawValue, $1.foodName) }
+        } else {
+            foodEntries = []
+        }
+
         if let data = defaults.data(forKey: trainingCalendarKey),
            let decoded = try? JSONDecoder().decode([TrainingCalendarEntry].self, from: data) {
             trainingCalendarEntries = decoded.sorted { $0.dateString < $1.dateString }
@@ -562,6 +751,11 @@ final class AthleteDataStore: ObservableObject {
         defaults.set(data, forKey: nutritionLogsKey)
     }
 
+    private func persistFoodEntries() {
+        guard let data = try? JSONEncoder().encode(foodEntries) else { return }
+        defaults.set(data, forKey: foodEntriesKey)
+    }
+
     private func persistTrainingCalendar() {
         guard let data = try? JSONEncoder().encode(trainingCalendarEntries) else { return }
         defaults.set(data, forKey: trainingCalendarKey)
@@ -584,4 +778,84 @@ final class AthleteDataStore: ObservableObject {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+
+    private static func food(
+        _ id: String,
+        _ name: String,
+        _ category: FoodCategory,
+        _ unit: FoodUnit,
+        _ serving: Double,
+        _ calories: Double,
+        _ protein: Double,
+        _ carbs: Double,
+        _ fat: Double,
+        brandSensitive: Bool = false,
+        notes: String = ""
+    ) -> FoodItem {
+        FoodItem(
+            id: id,
+            name: name,
+            category: category,
+            unit: unit,
+            defaultServing: serving,
+            caloriesPer100: calories,
+            proteinPer100: protein,
+            carbsPer100: carbs,
+            fatPer100: fat,
+            isEditable: true,
+            isBrandSensitive: brandSensitive,
+            notes: notes
+        )
+    }
+
+    private static let defaultFoodLibrary: [FoodItem] = [
+        food("chicken-breast", "鸡小胸 / 鸡胸肉", .protein, .g, 100, 110, 23, 0, 1.5, notes: "生重"),
+        food("skinless-chicken-leg", "去皮鸡腿肉", .protein, .g, 100, 130, 19, 0, 6, notes: "生重"),
+        food("beef-shank", "牛腱", .protein, .g, 100, 130, 20.5, 0, 4.5, notes: "生重"),
+        food("beef-tenderloin", "牛里脊", .protein, .g, 100, 125, 21, 0, 4, notes: "生重"),
+        food("lean-ground-beef", "瘦牛肉馅", .protein, .g, 100, 165, 20, 0, 9, notes: "生重"),
+        food("pork-tenderloin", "猪里脊", .protein, .g, 100, 125, 21, 0, 4, notes: "生重"),
+        food("basa-fish", "巴沙鱼", .protein, .g, 100, 90, 17, 0, 2, notes: "生重"),
+        food("cod", "鳕鱼", .protein, .g, 100, 85, 19, 0, 1, notes: "生重"),
+        food("salmon", "三文鱼", .protein, .g, 100, 205, 20, 0, 13),
+        food("shrimp", "虾仁", .protein, .g, 100, 80, 16, 1, 1),
+        food("whole-egg", "全蛋", .protein, .piece, 1, 70, 6.5, 0.5, 5, notes: "1个约50g"),
+        food("egg-white", "蛋清", .protein, .piece, 1, 17, 3.8, 0, 0, notes: "1个约30g"),
+        food("protein-powder", "蛋白粉", .supplement, .g, 30, 400, 80, 10, 6.7, brandSensitive: true, notes: "按30g=120 kcal / P24 / C3 / F2换算"),
+        food("low-fat-beef-ball", "低脂牛肉丸", .protein, .g, 100, 113, 19.8, 4.4, 1.7, brandSensitive: true),
+        food("tofu", "豆腐", .protein, .g, 100, 85, 8, 3, 5),
+        food("firm-tofu", "北豆腐 / 老豆腐", .protein, .g, 100, 120, 12, 3, 7),
+        food("raw-rice", "生米", .carb, .g, 100, 350, 7, 78, 0.8, notes: "生重"),
+        food("dry-noodles", "干面条", .carb, .g, 100, 350, 10, 72, 1.5, notes: "干重"),
+        food("pasta", "意面", .carb, .g, 100, 360, 12, 72, 1.5, notes: "干重"),
+        food("oats", "燕麦", .carb, .g, 100, 380, 12, 66, 7, notes: "干重"),
+        food("potato", "土豆", .carb, .g, 100, 80, 2, 17, 0, notes: "生重"),
+        food("sweet-potato", "红薯", .carb, .g, 100, 90, 1.5, 21, 0, notes: "生重"),
+        food("corn", "玉米", .carb, .g, 100, 110, 3.5, 23, 1.5, notes: "可食部"),
+        food("bagel", "贝果", .carb, .g, 100, 260, 10, 52, 2, brandSensitive: true),
+        food("toast", "吐司", .carb, .g, 100, 270, 9, 50, 4, brandSensitive: true),
+        food("steamed-bun", "馒头", .carb, .g, 100, 235, 7, 48, 1),
+        food("banana", "香蕉", .fruit, .g, 100, 90, 1, 22, 0, notes: "可食部"),
+        food("honey", "蜂蜜", .carb, .g, 100, 310, 0, 82, 0),
+        food("blueberry", "蓝莓", .fruit, .g, 100, 55, 0.7, 14, 0.3),
+        food("rice-noodles", "米粉 / 河粉", .carb, .g, 100, 350, 6, 78, 1, brandSensitive: true, notes: "干重或按包装"),
+        food("cooking-oil", "食用油", .fat, .g, 100, 900, 0, 0, 100),
+        food("olive-oil", "橄榄油", .fat, .g, 100, 900, 0, 0, 100),
+        food("peanut-butter", "花生酱", .fat, .g, 100, 600, 23, 20, 50, brandSensitive: true),
+        food("nuts", "坚果", .fat, .g, 100, 600, 20, 20, 50, brandSensitive: true),
+        food("avocado", "牛油果", .fat, .g, 100, 160, 2, 9, 15),
+        food("cheese-slice", "芝士片", .dairy, .g, 100, 320, 20, 4, 25, brandSensitive: true),
+        food("skim-milk", "脱脂牛奶", .dairy, .ml, 100, 35, 3.4, 5, 0.2),
+        food("low-fat-milk", "低脂牛奶", .dairy, .ml, 100, 50, 3.4, 5, 1.5),
+        food("plain-yogurt", "无糖酸奶", .dairy, .g, 100, 65, 5, 6, 2, brandSensitive: true),
+        food("greek-yogurt", "希腊酸奶", .dairy, .g, 100, 80, 10, 4, 2, brandSensitive: true),
+        food("broccoli", "西兰花", .vegetable, .g, 100, 35, 3, 7, 0, notes: "生重"),
+        food("spinach", "菠菜", .vegetable, .g, 100, 25, 3, 4, 0, notes: "生重"),
+        food("lettuce", "生菜", .vegetable, .g, 100, 15, 1, 3, 0, notes: "生重"),
+        food("cucumber", "黄瓜", .vegetable, .g, 100, 15, 1, 3, 0, notes: "生重"),
+        food("tomato", "番茄", .vegetable, .g, 100, 20, 1, 4, 0, notes: "生重"),
+        food("carrot", "胡萝卜", .vegetable, .g, 100, 40, 1, 9, 0, notes: "生重"),
+        food("mushroom", "蘑菇", .vegetable, .g, 100, 25, 3, 4, 0, notes: "生重"),
+        food("onion", "洋葱", .vegetable, .g, 100, 40, 1, 9, 0, notes: "生重")
+    ]
 }

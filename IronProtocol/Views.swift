@@ -1215,31 +1215,7 @@ private struct WorkoutLogScreen: View {
 
 private struct NutritionScreen: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
-    private var selectedDay: TrainingDay {
-        TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
-    }
-    private var meals: [MealTemplate] {
-        AthleteSeed.meals(
-            for: selectedDay,
-            phaseID: dataStore.todayPlan.phaseID,
-            variantID: dataStore.todayPlan.recipeVariantID,
-            calorieAdjustmentID: dataStore.todayPlan.calorieAdjustmentID
-        )
-    }
-
-    private var selectedVariantBinding: Binding<String> {
-        Binding(
-            get: { dataStore.todayPlan.recipeVariantID },
-            set: { dataStore.setTodayPlan(recipeVariantID: $0) }
-        )
-    }
-
-    private var selectedAdjustmentBinding: Binding<String> {
-        Binding(
-            get: { dataStore.todayPlan.calorieAdjustmentID },
-            set: { dataStore.setTodayPlan(calorieAdjustmentID: $0) }
-        )
-    }
+    @State private var showingAddFood = false
 
     private var selectedPhaseBinding: Binding<String> {
         Binding(
@@ -1249,45 +1225,406 @@ private struct NutritionScreen: View {
     }
 
     var body: some View {
-        AppScreen(title: "饮食", eyebrow: "模板饮食") {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ChoiceCard(title: "阶段", value: dataStore.todayPhaseText, active: true)
-                ChoiceCard(title: "版本", value: dataStore.todayRecipeVariantText, active: true)
-                ChoiceCard(title: "日型", value: dataStore.todayDietTypeText, active: true)
-                ChoiceCard(title: "调整", value: dataStore.todayCalorieAdjustmentText, active: dataStore.todayPlan.calorieAdjustmentID == "plus-100")
-            }
-
+        AppScreen(title: "饮食", eyebrow: "Nutrition Dashboard") {
             VStack(alignment: .leading, spacing: 12) {
-                SectionHeader("食谱选择", action: dataStore.todayCaloriesText)
+                SectionHeader("今日摄入目标", action: dataStore.todayCaloriesText)
                 PhaseSelector(selectedPhaseID: selectedPhaseBinding)
-                RecipeVariantSelector(selectedVariantID: selectedVariantBinding, phaseID: dataStore.todayPlan.phaseID)
-                CalorieAdjustmentSelector(selectedAdjustmentID: selectedAdjustmentBinding)
+                NutritionTargetDashboard(log: dataStore.todayNutritionLog, phaseText: dataStore.todayPhaseText)
             }
             .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
 
-            CoachInsightCard()
-            MacroTargetCard(
-                calories: dataStore.todayCaloriesText,
-                protein: dataStore.todayMacroTargets.protein,
-                carbs: dataStore.todayMacroTargets.carbs,
-                fat: dataStore.todayMacroTargets.fat
-            )
-
-            VStack(spacing: 0) {
-                ForEach(meals) { meal in
-                    MealRow(meal: meal, isDone: dataStore.isMealCompleted(meal.id)) {
-                        dataStore.toggleMeal(meal.id)
-                    }
-                    if meal.id != meals.last?.id {
-                        Divider().overlay(IOSTheme.line)
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader("今日已记录食物", action: "\(dataStore.todayNutritionLog.entries.count) 项")
+                ForEach(MealType.allCases) { mealType in
+                    MealEntrySection(
+                        mealType: mealType,
+                        entries: dataStore.todayNutritionLog.entries.filter { $0.mealType == mealType }
+                    )
                 }
             }
             .athleteCard()
 
-            NoteCard("牛肉丸版目前按你补充的图片录入，仅适用于 9周后稳定增肌。+100 kcal 先按午/晚餐合计增加生米 25g 执行。")
+            Button {
+                showingAddFood = true
+            } label: {
+                Label("添加食物", systemImage: "plus.circle.fill")
+                    .font(.headline.weight(.heavy))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.black)
+            .background(IOSTheme.accent)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            NoteCard("第一轮先记录实际摄入并自动计算 Calories / Protein / Carbs / Fat。固定推荐食谱和 +100 kcal 调整会在下一轮接入为一键填充。")
+        }
+        .sheet(isPresented: $showingAddFood) {
+            AddFoodEntrySheet()
+                .environmentObject(dataStore)
         }
     }
+}
+
+private struct NutritionTargetDashboard: View {
+    let log: DailyNutritionLog
+    let phaseText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("\(phaseText)｜\(log.target.trainingType)｜\(log.target.dietType)")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(IOSTheme.softInk)
+                    Text("\(Int(log.totalCalories.rounded())) / \(Int(log.target.caloriesTarget)) kcal")
+                        .font(.title2.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                }
+                Spacer()
+                Text(remainingText(log.remainingCalories, unit: "kcal"))
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(log.remainingCalories >= 0 ? IOSTheme.green : IOSTheme.amber)
+            }
+
+            IntakeProgressRow(title: "Calories", current: log.totalCalories, target: log.target.caloriesTarget, unit: "kcal")
+            IntakeProgressRow(title: "Protein", current: log.totalProtein, target: log.target.proteinTarget, unit: "g")
+            IntakeProgressRow(title: "Carbs", current: log.totalCarbs, target: log.target.carbsTarget, unit: "g")
+            IntakeProgressRow(title: "Fat", current: log.totalFat, target: log.target.fatTarget, unit: "g")
+        }
+    }
+}
+
+private struct IntakeProgressRow: View {
+    let title: String
+    let current: Double
+    let target: Double
+    let unit: String
+
+    private var progress: Double {
+        guard target > 0 else { return 0 }
+        return min(max(current / target, 0), 1.15)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.softInk)
+                    .frame(width: 68, alignment: .leading)
+                Text("\(formatNumber(current)) / \(formatNumber(target))\(unit == "kcal" ? "" : unit)")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.ink)
+                Spacer()
+                Text(remainingText(target - current, unit: unit))
+                    .font(.caption2.weight(.heavy))
+                    .foregroundStyle(current <= target ? IOSTheme.green : IOSTheme.amber)
+            }
+            ProgressView(value: progress)
+                .tint(current <= target ? IOSTheme.accent : IOSTheme.amber)
+        }
+    }
+}
+
+private struct MealEntrySection: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    let mealType: MealType
+    let entries: [FoodEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(mealType.rawValue)
+                    .font(.headline.weight(.heavy))
+                    .foregroundStyle(IOSTheme.ink)
+                Spacer()
+                Text("\(Int(entries.reduce(0) { $0 + $1.calculatedCalories }.rounded())) kcal")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.softInk)
+            }
+
+            if entries.isEmpty {
+                Text("未记录")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(IOSTheme.softInk.opacity(0.72))
+                    .padding(.vertical, 6)
+            } else {
+                ForEach(entries) { entry in
+                    FoodEntryRow(entry: entry) {
+                        dataStore.deleteFoodEntry(entry)
+                    }
+                    if entry.id != entries.last?.id {
+                        Divider().overlay(IOSTheme.line)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+private struct FoodEntryRow: View {
+    let entry: FoodEntry
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(entry.foodName)
+                    .font(.subheadline.weight(.heavy))
+                    .foregroundStyle(IOSTheme.ink)
+                Text("\(formatNumber(entry.amount))\(entry.unit.label) · \(Int(entry.calculatedCalories.rounded())) kcal / P \(formatNumber(entry.calculatedProtein)) / C \(formatNumber(entry.calculatedCarbs)) / F \(formatNumber(entry.calculatedFat))")
+                    .font(.caption)
+                    .foregroundStyle(IOSTheme.softInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Button {
+                onDelete()
+            } label: {
+                Image(systemName: "trash")
+                    .font(.caption.weight(.heavy))
+                    .foregroundStyle(IOSTheme.softInk)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 5)
+    }
+}
+
+private struct AddFoodEntrySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    @State private var mealType: MealType = .breakfast
+    @State private var selectedCategory: FoodCategory?
+    @State private var searchText = ""
+    @State private var selectedFoodID: String?
+    @State private var amountText = ""
+
+    private var foods: [FoodItem] {
+        dataStore.foodLibrary.filter { item in
+            let matchesCategory = selectedCategory == nil || item.category == selectedCategory
+            let matchesSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || item.name.localizedCaseInsensitiveContains(searchText)
+            return matchesCategory && matchesSearch
+        }
+    }
+
+    private var selectedFood: FoodItem? {
+        if let selectedFoodID,
+           let selected = foods.first(where: { $0.id == selectedFoodID }) {
+            return selected
+        }
+        return foods.first
+    }
+
+    private var amount: Double {
+        Double(amountText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    private var previewMacros: FoodMacros {
+        selectedFood?.macros(for: amount) ?? FoodMacros(calories: 0, protein: 0, carbs: 0, fat: 0)
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("餐次")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(IOSTheme.softInk)
+                        Picker("餐次", selection: $mealType) {
+                            ForEach(MealType.allCases) { meal in
+                                Text(meal.rawValue).tag(meal)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .athleteCard()
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("选择食物")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(IOSTheme.softInk)
+                        TextField("搜索食物名", text: $searchText)
+                            .font(.subheadline.weight(.heavy))
+                            .foregroundStyle(IOSTheme.ink)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+                            .background(IOSTheme.background.opacity(0.78))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                FoodCategoryChip(title: "全部", isSelected: selectedCategory == nil) {
+                                    selectedCategory = nil
+                                }
+                                ForEach(FoodCategory.allCases) { category in
+                                    FoodCategoryChip(title: category.label, isSelected: selectedCategory == category) {
+                                        selectedCategory = category
+                                    }
+                                }
+                            }
+                        }
+
+                        VStack(spacing: 0) {
+                            ForEach(foods) { food in
+                                FoodPickerRow(food: food, isSelected: selectedFood?.id == food.id) {
+                                    selectedFoodID = food.id
+                                    if amountText.isEmpty {
+                                        amountText = formatNumber(food.defaultServing)
+                                    }
+                                }
+                                if food.id != foods.last?.id {
+                                    Divider().overlay(IOSTheme.line)
+                                }
+                            }
+                        }
+                        .background(IOSTheme.background.opacity(0.42))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .athleteCard()
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("数量")
+                                    .font(.caption2.weight(.heavy))
+                                    .foregroundStyle(IOSTheme.softInk)
+                                Text(selectedFood?.name ?? "请选择食物")
+                                    .font(.headline.weight(.heavy))
+                                    .foregroundStyle(IOSTheme.ink)
+                            }
+                            Spacer()
+                            Text(selectedFood?.unit.label ?? "g")
+                                .font(.headline.weight(.heavy))
+                                .foregroundStyle(IOSTheme.accent)
+                        }
+                        TextField("输入数量", text: $amountText)
+                            .keyboardType(.decimalPad)
+                            .font(.title3.weight(.heavy))
+                            .foregroundStyle(IOSTheme.ink)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 10)
+                            .background(IOSTheme.background.opacity(0.78))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                        Text("\(Int(previewMacros.calories.rounded())) kcal / P \(formatNumber(previewMacros.protein)) / C \(formatNumber(previewMacros.carbs)) / F \(formatNumber(previewMacros.fat))")
+                            .font(.caption.weight(.heavy))
+                            .foregroundStyle(IOSTheme.softInk)
+                    }
+                    .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
+
+                    Button {
+                        guard let selectedFood, amount > 0 else { return }
+                        dataStore.addFoodEntry(foodItem: selectedFood, mealType: mealType, amount: amount)
+                        dismissKeyboard()
+                        dismiss()
+                    } label: {
+                        Text("保存食物记录")
+                            .font(.headline.weight(.heavy))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.black)
+                    .background((selectedFood != nil && amount > 0) ? IOSTheme.accent : IOSTheme.surfaceRaised)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .disabled(selectedFood == nil || amount <= 0)
+                }
+                .padding(16)
+            }
+            .background(IOSTheme.background.ignoresSafeArea())
+            .navigationTitle("添加食物")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") {
+                        dismissKeyboard()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            if selectedFoodID == nil, let first = dataStore.foodLibrary.first {
+                selectedFoodID = first.id
+                amountText = formatNumber(first.defaultServing)
+            }
+        }
+        .onChange(of: selectedCategory) { _ in
+            if let first = foods.first {
+                selectedFoodID = first.id
+                amountText = formatNumber(first.defaultServing)
+            }
+        }
+    }
+}
+
+private struct FoodCategoryChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.heavy))
+                .foregroundStyle(isSelected ? Color.black : IOSTheme.softInk)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(isSelected ? IOSTheme.accent : IOSTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FoodPickerRow: View {
+    let food: FoodItem
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? IOSTheme.green : IOSTheme.softInk)
+                    .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(food.name)
+                        .font(.subheadline.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                    Text("\(food.category.label) · 默认 \(formatNumber(food.defaultServing))\(food.unit.label)\(food.notes.isEmpty ? "" : " · \(food.notes)")")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(IOSTheme.softInk)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private func formatNumber(_ value: Double) -> String {
+    if value.rounded() == value {
+        return String(Int(value))
+    }
+    return String(format: "%.1f", value)
+}
+
+private func remainingText(_ value: Double, unit: String) -> String {
+    if value >= 0 {
+        return "剩余 \(formatNumber(value))\(unit)"
+    }
+    return "超出 \(formatNumber(abs(value)))\(unit)"
 }
 
 private struct ProgressScreen: View {
