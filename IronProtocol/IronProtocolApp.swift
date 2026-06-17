@@ -36,17 +36,6 @@ private struct SplashScreen: View {
                 .scaledToFill()
                 .ignoresSafeArea()
                 .overlay(Color.black.opacity(0.18))
-
-            VStack(spacing: 8) {
-                Text("DESIDERATUS")
-                Text("FATUM")
-            }
-            .font(.system(size: 28, weight: .semibold, design: .serif))
-            .tracking(3.5)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(.white)
-            .shadow(color: .black.opacity(0.85), radius: 10, x: 0, y: 4)
-            .padding(.horizontal, 34)
         }
     }
 }
