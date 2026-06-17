@@ -1400,8 +1400,7 @@ private struct AddFoodEntrySheet: View {
     @State private var mealType: MealType = .breakfast
     @State private var selectedCategory: FoodCategory?
     @State private var searchText = ""
-    @State private var selectedFoodID: String?
-    @State private var amountText = ""
+    @State private var foodForAmount: FoodItem?
 
     private var foods: [FoodItem] {
         dataStore.foodLibrary.filter { item in
@@ -1409,22 +1408,6 @@ private struct AddFoodEntrySheet: View {
             let matchesSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || item.name.localizedCaseInsensitiveContains(searchText)
             return matchesCategory && matchesSearch
         }
-    }
-
-    private var selectedFood: FoodItem? {
-        if let selectedFoodID,
-           let selected = foods.first(where: { $0.id == selectedFoodID }) {
-            return selected
-        }
-        return foods.first
-    }
-
-    private var amount: Double {
-        Double(amountText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
-    }
-
-    private var previewMacros: FoodMacros {
-        selectedFood?.macros(for: amount) ?? FoodMacros(calories: 0, protein: 0, carbs: 0, fat: 0)
     }
 
     var body: some View {
@@ -1471,11 +1454,8 @@ private struct AddFoodEntrySheet: View {
 
                         VStack(spacing: 0) {
                             ForEach(foods) { food in
-                                FoodPickerRow(food: food, isSelected: selectedFood?.id == food.id) {
-                                    selectedFoodID = food.id
-                                    if amountText.isEmpty {
-                                        amountText = formatNumber(food.defaultServing)
-                                    }
+                                FoodPickerRow(food: food) {
+                                    foodForAmount = food
                                 }
                                 if food.id != foods.last?.id {
                                     Divider().overlay(IOSTheme.line)
@@ -1486,53 +1466,6 @@ private struct AddFoodEntrySheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
                     .athleteCard()
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("数量")
-                                    .font(.caption2.weight(.heavy))
-                                    .foregroundStyle(IOSTheme.softInk)
-                                Text(selectedFood?.name ?? "请选择食物")
-                                    .font(.headline.weight(.heavy))
-                                    .foregroundStyle(IOSTheme.ink)
-                            }
-                            Spacer()
-                            Text(selectedFood?.unit.label ?? "g")
-                                .font(.headline.weight(.heavy))
-                                .foregroundStyle(IOSTheme.accent)
-                        }
-                        TextField("输入数量", text: $amountText)
-                            .keyboardType(.decimalPad)
-                            .font(.title3.weight(.heavy))
-                            .foregroundStyle(IOSTheme.ink)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 10)
-                            .background(IOSTheme.background.opacity(0.78))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        Text("\(Int(previewMacros.calories.rounded())) kcal / P \(formatNumber(previewMacros.protein)) / C \(formatNumber(previewMacros.carbs)) / F \(formatNumber(previewMacros.fat))")
-                            .font(.caption.weight(.heavy))
-                            .foregroundStyle(IOSTheme.softInk)
-                    }
-                    .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
-
-                    Button {
-                        guard let selectedFood, amount > 0 else { return }
-                        dataStore.addFoodEntry(foodItem: selectedFood, mealType: mealType, amount: amount)
-                        dismissKeyboard()
-                        dismiss()
-                    } label: {
-                        Text("保存食物记录")
-                            .font(.headline.weight(.heavy))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 13)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.black)
-                    .background((selectedFood != nil && amount > 0) ? IOSTheme.accent : IOSTheme.surfaceRaised)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .disabled(selectedFood == nil || amount <= 0)
                 }
                 .padding(16)
             }
@@ -1549,16 +1482,12 @@ private struct AddFoodEntrySheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            if selectedFoodID == nil, let first = dataStore.foodLibrary.first {
-                selectedFoodID = first.id
-                amountText = formatNumber(first.defaultServing)
-            }
-        }
-        .onChange(of: selectedCategory) { _ in
-            if let first = foods.first {
-                selectedFoodID = first.id
-                amountText = formatNumber(first.defaultServing)
+        .sheet(item: $foodForAmount) { food in
+            FoodAmountSheet(food: food, mealType: mealType) { amount in
+                dataStore.addFoodEntry(foodItem: food, mealType: mealType, amount: amount)
+                dismissKeyboard()
+                foodForAmount = nil
+                dismiss()
             }
         }
     }
@@ -1585,14 +1514,13 @@ private struct FoodCategoryChip: View {
 
 private struct FoodPickerRow: View {
     let food: FoodItem
-    let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? IOSTheme.green : IOSTheme.softInk)
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(IOSTheme.accent)
                     .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(food.name)
@@ -1610,6 +1538,104 @@ private struct FoodPickerRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct FoodAmountSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let food: FoodItem
+    let mealType: MealType
+    let onSave: (Double) -> Void
+    @State private var amountText: String
+
+    init(food: FoodItem, mealType: MealType, onSave: @escaping (Double) -> Void) {
+        self.food = food
+        self.mealType = mealType
+        self.onSave = onSave
+        _amountText = State(initialValue: formatNumber(food.defaultServing))
+    }
+
+    private var amount: Double {
+        Double(amountText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    private var previewMacros: FoodMacros {
+        food.macros(for: amount)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(mealType.rawValue)
+                        .font(.caption2.weight(.heavy))
+                        .foregroundStyle(IOSTheme.accent)
+                    Text(food.name)
+                        .font(.title3.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                    Text("\(food.category.label) · 默认 \(formatNumber(food.defaultServing))\(food.unit.label)\(food.notes.isEmpty ? "" : " · \(food.notes)")")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(IOSTheme.softInk)
+                }
+                .athleteCard(border: IOSTheme.accent.opacity(0.22), fill: IOSTheme.surfaceRaised)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("输入数量")
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(IOSTheme.softInk)
+                        Spacer()
+                        Text(food.unit.label)
+                            .font(.headline.weight(.heavy))
+                            .foregroundStyle(IOSTheme.accent)
+                    }
+                    TextField("输入数量", text: $amountText)
+                        .keyboardType(.decimalPad)
+                        .font(.title2.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 12)
+                        .background(IOSTheme.background.opacity(0.78))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    Text("\(Int(previewMacros.calories.rounded())) kcal / P \(formatNumber(previewMacros.protein)) / C \(formatNumber(previewMacros.carbs)) / F \(formatNumber(previewMacros.fat))")
+                        .font(.caption.weight(.heavy))
+                        .foregroundStyle(IOSTheme.softInk)
+                }
+                .athleteCard()
+
+                Button {
+                    guard amount > 0 else { return }
+                    onSave(amount)
+                    dismiss()
+                } label: {
+                    Text("确认添加")
+                        .font(.headline.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.black)
+                .background(amount > 0 ? IOSTheme.accent : IOSTheme.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .disabled(amount <= 0)
+
+                Spacer()
+            }
+            .padding(16)
+            .background(IOSTheme.background.ignoresSafeArea())
+            .navigationTitle("记录数量")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("返回") {
+                        dismissKeyboard()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
