@@ -2205,7 +2205,7 @@ private struct SectionHeader: View {
     }
 }
 
-#Preview("Orchestrate App") {
+#Preview("Iron Protocol") {
     IOSRootView()
         .environmentObject(AthleteDataStore(defaults: .standard))
 }

@@ -7,20 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		OR0100000000000000000001 /* Orchestrate/OrchestrateApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000001 /* Orchestrate/OrchestrateApp.swift */; };
-		OR0100000000000000000002 /* Orchestrate/IOSTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000002 /* Orchestrate/IOSTheme.swift */; };
-		OR0100000000000000000003 /* Orchestrate/Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000003 /* Orchestrate/Views.swift */; };
-		OR0100000000000000000004 /* Orchestrate/AthleteDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000006 /* Orchestrate/AthleteDataStore.swift */; };
-		OR0100000000000000000005 /* Orchestrate/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000007 /* Orchestrate/Assets.xcassets */; };
+		OR0100000000000000000001 /* IronProtocol/IronProtocolApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000001 /* IronProtocol/IronProtocolApp.swift */; };
+		OR0100000000000000000002 /* IronProtocol/IOSTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000002 /* IronProtocol/IOSTheme.swift */; };
+		OR0100000000000000000003 /* IronProtocol/Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000003 /* IronProtocol/Views.swift */; };
+		OR0100000000000000000004 /* IronProtocol/AthleteDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */; };
+		OR0100000000000000000005 /* IronProtocol/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000007 /* IronProtocol/Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		OR0200000000000000000001 /* Orchestrate/OrchestrateApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestrate/OrchestrateApp.swift; sourceTree = "<group>"; };
-		OR0200000000000000000002 /* Orchestrate/IOSTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestrate/IOSTheme.swift; sourceTree = "<group>"; };
-		OR0200000000000000000003 /* Orchestrate/Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestrate/Views.swift; sourceTree = "<group>"; };
-		OR0200000000000000000005 /* Orchestrate.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Orchestrate.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		OR0200000000000000000006 /* Orchestrate/AthleteDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestrate/AthleteDataStore.swift; sourceTree = "<group>"; };
-		OR0200000000000000000007 /* Orchestrate/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Orchestrate/Assets.xcassets; sourceTree = "<group>"; };
+		OR0200000000000000000001 /* IronProtocol/IronProtocolApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/IronProtocolApp.swift; sourceTree = "<group>"; };
+		OR0200000000000000000002 /* IronProtocol/IOSTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/IOSTheme.swift; sourceTree = "<group>"; };
+		OR0200000000000000000003 /* IronProtocol/Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/Views.swift; sourceTree = "<group>"; };
+		OR0200000000000000000005 /* Iron Protocol.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Iron Protocol.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/AthleteDataStore.swift; sourceTree = "<group>"; };
+		OR0200000000000000000007 /* IronProtocol/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = IronProtocol/Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,18 +45,18 @@
 		OR0400000000000000000002 = {
 			isa = PBXGroup;
 			children = (
-				OR0200000000000000000001 /* Orchestrate/OrchestrateApp.swift */,
-				OR0200000000000000000002 /* Orchestrate/IOSTheme.swift */,
-				OR0200000000000000000006 /* Orchestrate/AthleteDataStore.swift */,
-				OR0200000000000000000003 /* Orchestrate/Views.swift */,
-				OR0200000000000000000007 /* Orchestrate/Assets.xcassets */,
+				OR0200000000000000000001 /* IronProtocol/IronProtocolApp.swift */,
+				OR0200000000000000000002 /* IronProtocol/IOSTheme.swift */,
+				OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */,
+				OR0200000000000000000003 /* IronProtocol/Views.swift */,
+				OR0200000000000000000007 /* IronProtocol/Assets.xcassets */,
 			);
 			sourceTree = "<group>";
 		};
 		OR0400000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				OR0200000000000000000005 /* Orchestrate.app */,
+				OR0200000000000000000005 /* Iron Protocol.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,9 +64,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		OR0500000000000000000001 /* Orchestrate */ = {
+		OR0500000000000000000001 /* Iron Protocol */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OR1000000000000000000002 /* Build configuration list for PBXNativeTarget "Orchestrate" */;
+			buildConfigurationList = OR1000000000000000000002 /* Build configuration list for PBXNativeTarget "Iron Protocol" */;
 			buildPhases = (
 				OR0800000000000000000001 /* Sources */,
 				OR0300000000000000000001 /* Frameworks */,
@@ -76,9 +76,9 @@
 			);
 			dependencies = (
 			);
-			name = Orchestrate;
-			productName = Orchestrate;
-			productReference = OR0200000000000000000005 /* Orchestrate.app */;
+			name = "Iron Protocol";
+			productName = "Iron Protocol";
+			productReference = OR0200000000000000000005 /* Iron Protocol.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -96,7 +96,7 @@
 					};
 				};
 			};
-			buildConfigurationList = OR1000000000000000000001 /* Build configuration list for PBXProject "Orchestrate" */;
+			buildConfigurationList = OR1000000000000000000001 /* Build configuration list for PBXProject "Iron Protocol" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -109,7 +109,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				OR0500000000000000000001 /* Orchestrate */,
+				OR0500000000000000000001 /* Iron Protocol */,
 			);
 		};
 /* End PBXProject section */
@@ -119,7 +119,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				OR0100000000000000000005 /* Orchestrate/Assets.xcassets in Resources */,
+				OR0100000000000000000005 /* IronProtocol/Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,10 +130,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				OR0100000000000000000001 /* Orchestrate/OrchestrateApp.swift in Sources */,
-				OR0100000000000000000002 /* Orchestrate/IOSTheme.swift in Sources */,
-				OR0100000000000000000004 /* Orchestrate/AthleteDataStore.swift in Sources */,
-				OR0100000000000000000003 /* Orchestrate/Views.swift in Sources */,
+				OR0100000000000000000001 /* IronProtocol/IronProtocolApp.swift in Sources */,
+				OR0100000000000000000002 /* IronProtocol/IOSTheme.swift in Sources */,
+				OR0100000000000000000004 /* IronProtocol/AthleteDataStore.swift in Sources */,
+				OR0100000000000000000003 /* IronProtocol/Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,7 +266,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				INFOPLIST_KEY_CFBundleDisplayName = Orchestrate;
+				INFOPLIST_KEY_CFBundleDisplayName = "Iron Protocol";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -278,8 +278,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.alex.orchestrate;
-				PRODUCT_NAME = Orchestrate;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alex.ironprotocol;
+				PRODUCT_NAME = "Iron Protocol";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -297,7 +297,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				INFOPLIST_KEY_CFBundleDisplayName = Orchestrate;
+				INFOPLIST_KEY_CFBundleDisplayName = "Iron Protocol";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -309,8 +309,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.alex.orchestrate;
-				PRODUCT_NAME = Orchestrate;
+				PRODUCT_BUNDLE_IDENTIFIER = com.alex.ironprotocol;
+				PRODUCT_NAME = "Iron Protocol";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -322,7 +322,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		OR1000000000000000000001 /* Build configuration list for PBXProject "Orchestrate" */ = {
+		OR1000000000000000000001 /* Build configuration list for PBXProject "Iron Protocol" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				OR1100000000000000000001 /* Debug */,
@@ -331,7 +331,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OR1000000000000000000002 /* Build configuration list for PBXNativeTarget "Orchestrate" */ = {
+		OR1000000000000000000002 /* Build configuration list for PBXNativeTarget "Iron Protocol" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				OR1100000000000000000003 /* Debug */,

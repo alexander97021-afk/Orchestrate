@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct OrchestrateApp: App {
+struct IronProtocolApp: App {
     @StateObject private var dataStore = AthleteDataStore()
     @State private var showSplash = true
 

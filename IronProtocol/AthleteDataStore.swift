@@ -132,11 +132,11 @@ final class AthleteDataStore: ObservableObject {
     @Published private(set) var todayPlan = TodayPlan(cycleID: 1, trainingDay: "背")
 
     private let defaults: UserDefaults
-    private let bodyEntriesKey = "orchestrate.bodyEntries"
-    private let nutritionLogsKey = "orchestrate.nutritionLogs"
-    private let trainingCalendarKey = "orchestrate.trainingCalendarEntries"
-    private let exerciseLogsKey = "orchestrate.exerciseLogs"
-    private let todayPlanKey = "orchestrate.todayPlan"
+    private let bodyEntriesKey = "ironprotocol.bodyEntries"
+    private let nutritionLogsKey = "ironprotocol.nutritionLogs"
+    private let trainingCalendarKey = "ironprotocol.trainingCalendarEntries"
+    private let exerciseLogsKey = "ironprotocol.exerciseLogs"
+    private let todayPlanKey = "ironprotocol.todayPlan"
     private let calendar = Calendar.current
 
     init(defaults: UserDefaults = .standard) {

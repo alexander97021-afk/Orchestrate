@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SPLASH_SOURCE="$ROOT/BrandingSources/splash-source.png"
 ICON_SOURCE="$ROOT/BrandingSources/icon-source.png"
-ASSETS="$ROOT/Orchestrate/Assets.xcassets"
+ASSETS="$ROOT/IronProtocol/Assets.xcassets"
 
 if [[ ! -f "$SPLASH_SOURCE" ]]; then
   echo "Missing $SPLASH_SOURCE"
