@@ -188,6 +188,7 @@ enum MealPresetVariant: String, Codable, CaseIterable, Identifiable {
     case standard
     case rice
     case noodle
+    case beef
     case beefBall
     case diverseA
     case diverseB
@@ -200,6 +201,7 @@ enum MealPresetVariant: String, Codable, CaseIterable, Identifiable {
         case .standard: return "固定食谱"
         case .rice: return "米饭版"
         case .noodle: return "面条版"
+        case .beef: return "牛肉版"
         case .beefBall: return "牛肉丸版"
         case .diverseA: return "多样化 A"
         case .diverseB: return "多样化 B"
@@ -640,6 +642,11 @@ final class AthleteDataStore: ObservableObject {
 
     var fixedPresetForToday: MealPreset? {
         mealPreset(source: .fixed, variant: .standard)
+    }
+
+    var beefPresetForToday: MealPreset? {
+        guard todayPlan.phaseID == "buffer-3-8" || todayPlan.phaseID == "stable-9-plus" else { return nil }
+        return mealPreset(source: .fixed, variant: .beef)
     }
 
     var beefBallPresetForToday: MealPreset? {
@@ -1186,6 +1193,41 @@ final class AthleteDataStore: ObservableObject {
             snack: [("cooking-oil", 25)]
         ),
         fixedPreset(
+            "phase1-shoulder-chest-beef",
+            "Phase 1｜肩 / 胸日｜牛肉版",
+            phaseID: "buffer-3-8",
+            group: .shoulderChest,
+            variant: .beef,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 110), ("beef-shank", 250), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 110), ("beef-shank", 250), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase1-back-leg-beef",
+            "Phase 1｜背 / 腿日｜牛肉版",
+            phaseID: "buffer-3-8",
+            group: .backLegs,
+            variant: .beef,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("raw-rice", 130), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 130), ("beef-shank", 260), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase1-rest-beef",
+            "Phase 1｜休息日｜牛肉版",
+            phaseID: "buffer-3-8",
+            group: .rest,
+            variant: .beef,
+            breakfast: [("oats", 50), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 90), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 90), ("beef-shank", 260), ("whole-egg", 2), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 25)]
+        ),
+        fixedPreset(
             "phase2-shoulder-chest-standard",
             "Phase 2｜肩 / 胸日固定食谱",
             phaseID: "stable-9-plus",
@@ -1215,6 +1257,41 @@ final class AthleteDataStore: ObservableObject {
             breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
             lunch: [("raw-rice", 100), ("chicken-breast", 230), ("mixed-vegetables", 200)],
             dinner: [("raw-rice", 100), ("chicken-breast", 230), ("whole-egg", 2), ("mixed-vegetables", 200)],
+            snack: [("cooking-oil", 25)]
+        ),
+        fixedPreset(
+            "phase2-shoulder-chest-beef",
+            "Phase 2｜肩 / 胸日｜牛肉版",
+            phaseID: "stable-9-plus",
+            group: .shoulderChest,
+            variant: .beef,
+            breakfast: [("oats", 70), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 10)],
+            lunch: [("raw-rice", 120), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 120), ("beef-shank", 260), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-back-leg-beef",
+            "Phase 2｜背 / 腿日｜牛肉版",
+            phaseID: "stable-9-plus",
+            group: .backLegs,
+            variant: .beef,
+            breakfast: [("oats", 80), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3), ("honey", 15)],
+            lunch: [("raw-rice", 145), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 145), ("beef-shank", 260), ("whole-egg", 1), ("mixed-vegetables", 200)],
+            postWorkout: [("toast", 60), ("protein-powder", 30)],
+            snack: [("cooking-oil", 20)]
+        ),
+        fixedPreset(
+            "phase2-rest-beef",
+            "Phase 2｜休息日｜牛肉版",
+            phaseID: "stable-9-plus",
+            group: .rest,
+            variant: .beef,
+            breakfast: [("oats", 60), ("skim-milk", 250), ("whole-egg", 2), ("egg-white", 3)],
+            lunch: [("raw-rice", 100), ("beef-shank", 260), ("mixed-vegetables", 200)],
+            dinner: [("raw-rice", 100), ("beef-shank", 260), ("whole-egg", 2), ("mixed-vegetables", 200)],
             snack: [("cooking-oil", 25)]
         ),
         fixedPreset(

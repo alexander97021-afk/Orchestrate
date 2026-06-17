@@ -652,7 +652,6 @@ private struct TodayDashboard: View {
             DashboardGrid {
                 selectedTab = .training
             }
-            MealCompactCard()
         }
     }
 }
@@ -753,15 +752,6 @@ private struct DashboardGrid: View {
         TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
     }
 
-    private var todayMeals: [MealTemplate] {
-        AthleteSeed.meals(
-            for: todayDay,
-            phaseID: dataStore.todayPlan.phaseID,
-            variantID: dataStore.todayPlan.recipeVariantID,
-            calorieAdjustmentID: dataStore.todayPlan.calorieAdjustmentID
-        )
-    }
-
     var body: some View {
         VStack(spacing: 10) {
             DashboardCard(
@@ -782,10 +772,8 @@ private struct DashboardGrid: View {
             HStack(spacing: 10) {
                 DashboardCard(
                     eyebrow: "饮食",
-                    title: "\(dataStore.todayDietTypeText) · \(dataStore.todayRecipeVariantText)",
-                    description: dataStore.nutritionCompletionRate(for: todayMeals.map(\.id)) >= 1
-                        ? "今日饮食模板已完成。"
-                        : "\(dataStore.todayCaloriesText) · \(dataStore.nutritionCompletionText(for: todayMeals.map(\.id)))。训练日变化后，饮食类型会跟随切换。"
+                    title: "\(dataStore.todayNutritionLog.target.dietType) · \(dataStore.todayCalorieAdjustmentText)",
+                    description: "\(dataStore.todayNutritionLog.entries.count) 项记录 · \(Int(dataStore.todayNutritionLog.totalCalories.rounded())) / \(Int(dataStore.todayNutritionLog.target.caloriesTarget)) kcal。到 Nutrition 执行食谱或记录实际摄入。"
                 )
                 DashboardCard(
                     eyebrow: "身体趋势",
@@ -1254,6 +1242,7 @@ private struct NutritionScreen: View {
                     plus100Enabled: plus100Binding,
                     selectedModeID: dayModeBinding,
                     fixedPreset: dataStore.fixedPresetForToday,
+                    beefPreset: dataStore.beefPresetForToday,
                     beefBallPreset: dataStore.beefBallPresetForToday,
                     hasDiversePreset: dataStore.diversePresetForToday != nil,
                     dayMode: dataStore.todayDayMode,
@@ -1268,6 +1257,19 @@ private struct NutritionScreen: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader("今日已记录食物", action: "\(dataStore.todayNutritionLog.entries.count) 项")
+                Button {
+                    showingAddFood = true
+                } label: {
+                    Label("添加食物", systemImage: "plus.circle.fill")
+                        .font(.headline.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.black)
+                .background(IOSTheme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
                 ForEach(MealType.allCases) { mealType in
                     MealEntrySection(
                         mealType: mealType,
@@ -1276,19 +1278,6 @@ private struct NutritionScreen: View {
                 }
             }
             .athleteCard()
-
-            Button {
-                showingAddFood = true
-            } label: {
-                Label("添加食物", systemImage: "plus.circle.fill")
-                    .font(.headline.weight(.heavy))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.black)
-            .background(IOSTheme.accent)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .sheet(isPresented: $showingAddFood) {
             AddFoodEntrySheet()
@@ -1364,6 +1353,7 @@ private struct NutritionActionPanel: View {
     @Binding var plus100Enabled: Bool
     @Binding var selectedModeID: String
     let fixedPreset: MealPreset?
+    let beefPreset: MealPreset?
     let beefBallPreset: MealPreset?
     let hasDiversePreset: Bool
     let dayMode: NutritionDayMode
@@ -1410,21 +1400,59 @@ private struct NutritionActionPanel: View {
             }
 
             if let beefBallPreset {
+                HStack(spacing: 8) {
+                    if let beefPreset {
+                        Button {
+                            onApplyPreset(beefPreset)
+                        } label: {
+                            Label("使用牛肉版", systemImage: "fork.knife")
+                                .font(.caption.weight(.heavy))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(IOSTheme.ink)
+                        .background(IOSTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(IOSTheme.line, lineWidth: 1)
+                        )
+                    }
+
+                    Button {
+                        onApplyPreset(beefBallPreset)
+                    } label: {
+                        Label("使用牛肉丸版", systemImage: "flame.fill")
+                            .font(.caption.weight(.heavy))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(IOSTheme.ink)
+                    .background(IOSTheme.amber.opacity(0.16))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(IOSTheme.amber.opacity(0.34), lineWidth: 1)
+                    )
+                }
+            } else if let beefPreset {
                 Button {
-                    onApplyPreset(beefBallPreset)
+                    onApplyPreset(beefPreset)
                 } label: {
-                    Label("使用 Phase 2 牛肉丸版", systemImage: "flame.fill")
+                    Label("使用牛肉版", systemImage: "fork.knife")
                         .font(.caption.weight(.heavy))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(IOSTheme.ink)
-                .background(IOSTheme.amber.opacity(0.16))
+                .background(IOSTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(IOSTheme.amber.opacity(0.34), lineWidth: 1)
+                        .stroke(IOSTheme.line, lineWidth: 1)
                 )
             }
 
