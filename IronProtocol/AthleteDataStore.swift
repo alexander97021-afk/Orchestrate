@@ -802,6 +802,12 @@ final class AthleteDataStore: ObservableObject {
         persistExerciseLogs()
     }
 
+    func deleteExerciseLogs(cycleID: Int, day: String, exerciseIDs: [String], date: Date = Date()) {
+        let keys = Set(exerciseIDs.map { exerciseLogKey(cycleID: cycleID, day: day, exerciseID: $0, date: date) })
+        exerciseLogs.removeAll { keys.contains($0.logKey) }
+        persistExerciseLogs()
+    }
+
     func completedExerciseCount(cycleID: Int, day: String, exerciseIDs: [String], date: Date = Date()) -> Int {
         exerciseIDs.filter { exerciseLog(cycleID: cycleID, day: day, exerciseID: $0, date: date).isDone }.count
     }

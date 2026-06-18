@@ -174,6 +174,17 @@ private struct WorkoutSession: Identifiable, Equatable {
     let cycleID: Int
     let day: TrainingDay
     let startDate: Date
+    var accumulatedPausedTime: TimeInterval = 0
+    var pauseStartedAt: Date?
+
+    var isPaused: Bool {
+        pauseStartedAt != nil
+    }
+
+    func elapsed(at date: Date = Date()) -> TimeInterval {
+        let effectiveNow = pauseStartedAt ?? date
+        return max(effectiveNow.timeIntervalSince(startDate) - accumulatedPausedTime, 0)
+    }
 }
 
 private enum AthleteSeed {
@@ -612,8 +623,8 @@ struct IOSRootView: View {
                     .tabItem { Label(AthleteTab.templates.rawValue, systemImage: AthleteTab.templates.systemImage) }
             }
 
-            if let workoutSession, !isWorkoutSessionPresented {
-                MinimizedWorkoutBubble(session: workoutSession) {
+            if workoutSession != nil, !isWorkoutSessionPresented {
+                MinimizedWorkoutBubble(session: workoutSessionBinding) {
                     isWorkoutSessionPresented = true
                 }
                 .padding(.trailing, 16)
@@ -623,19 +634,29 @@ struct IOSRootView: View {
         .tint(IOSTheme.accent)
         .preferredColorScheme(.dark)
         .fullScreenCover(isPresented: $isWorkoutSessionPresented) {
-            if let workoutSession {
+            if workoutSession != nil {
                 WorkoutSessionSheet(
-                    session: workoutSession,
+                    session: workoutSessionBinding,
                     onMinimize: {
                         isWorkoutSessionPresented = false
                     },
                     onFinish: {
                         self.workoutSession = nil
                         isWorkoutSessionPresented = false
+                    },
+                    onCancel: {
+                        cancelWorkoutSession()
                     }
                 )
             }
         }
+    }
+
+    private var workoutSessionBinding: Binding<WorkoutSession> {
+        Binding(
+            get: { workoutSession ?? WorkoutSession(cycleID: dataStore.todayPlan.cycleID, day: TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back, startDate: Date()) },
+            set: { workoutSession = $0 }
+        )
     }
 
     private func startTodayWorkout() {
@@ -649,6 +670,24 @@ struct IOSRootView: View {
         }
         workoutSession = WorkoutSession(cycleID: cycleID, day: day, startDate: Date())
         isWorkoutSessionPresented = true
+    }
+
+    private func cancelWorkoutSession() {
+        guard let workoutSession else { return }
+        let exerciseIDs = AthleteSeed.cycles
+            .first { $0.id == workoutSession.cycleID }?
+            .dayTemplates
+            .first { $0.day == workoutSession.day }?
+            .exercises
+            .map(\.id) ?? []
+        dataStore.deleteExerciseLogs(
+            cycleID: workoutSession.cycleID,
+            day: workoutSession.day.rawValue,
+            exerciseIDs: exerciseIDs,
+            date: workoutSession.startDate
+        )
+        self.workoutSession = nil
+        isWorkoutSessionPresented = false
     }
 }
 
@@ -996,9 +1035,10 @@ private struct SaveDayPlanButton: View {
 
 private struct WorkoutSessionSheet: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
-    let session: WorkoutSession
+    @Binding var session: WorkoutSession
     let onMinimize: () -> Void
     let onFinish: () -> Void
+    let onCancel: () -> Void
 
     private var template: WorkoutDayTemplate? {
         AthleteSeed.cycles
@@ -1034,6 +1074,38 @@ private struct WorkoutSessionSheet: View {
                             PlaceholderCard(
                                 title: "训练模板待补",
                                 description: "当前 Cycle 和训练日还没有动作模板。后续补充后会自动进入弹窗记录。"
+                            )
+                        }
+
+                        HStack(spacing: 10) {
+                            Button {
+                                togglePause()
+                            } label: {
+                                Label(session.isPaused ? "继续训练" : "暂停", systemImage: session.isPaused ? "play.fill" : "pause.fill")
+                                    .font(.headline.weight(.heavy))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(session.isPaused ? Color.black : IOSTheme.ink)
+                            .background(session.isPaused ? IOSTheme.accent : IOSTheme.surfaceRaised)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            Button {
+                                onCancel()
+                            } label: {
+                                Label("取消训练", systemImage: "xmark.circle.fill")
+                                    .font(.headline.weight(.heavy))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(IOSTheme.ink)
+                            .background(IOSTheme.red.opacity(0.18))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(IOSTheme.red.opacity(0.34), lineWidth: 1)
                             )
                         }
 
@@ -1084,11 +1156,20 @@ private struct WorkoutSessionSheet: View {
 
                 Spacer()
 
-                StatusPill("训练中", color: IOSTheme.green)
+                StatusPill(session.isPaused ? "已暂停" : "训练中", color: session.isPaused ? IOSTheme.amber : IOSTheme.green)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(IOSTheme.background.opacity(0.96))
+        }
+    }
+
+    private func togglePause() {
+        if let pausedAt = session.pauseStartedAt {
+            session.accumulatedPausedTime += Date().timeIntervalSince(pausedAt)
+            session.pauseStartedAt = nil
+        } else {
+            session.pauseStartedAt = Date()
         }
     }
 }
@@ -1104,7 +1185,7 @@ private struct WorkoutSessionHeader: View {
                 StatusPill("C\(session.cycleID)")
                 StatusPill(session.day.rawValue)
                 Spacer()
-                WorkoutDurationText(startDate: session.startDate)
+                WorkoutDurationText(session: session)
             }
 
             Text("\(session.day.rawValue)日训练")
@@ -1121,7 +1202,7 @@ private struct WorkoutSessionHeader: View {
 }
 
 private struct MinimizedWorkoutBubble: View {
-    let session: WorkoutSession
+    @Binding var session: WorkoutSession
     let action: () -> Void
 
     var body: some View {
@@ -1129,7 +1210,7 @@ private struct MinimizedWorkoutBubble: View {
             VStack(spacing: 4) {
                 Text(session.day.rawValue)
                     .font(.headline.weight(.heavy))
-                WorkoutDurationText(startDate: session.startDate, compact: true)
+                WorkoutDurationText(session: session, compact: true)
             }
             .foregroundStyle(Color.black)
             .frame(width: 78, height: 78)
@@ -1146,19 +1227,19 @@ private struct MinimizedWorkoutBubble: View {
 }
 
 private struct WorkoutDurationText: View {
-    let startDate: Date
+    let session: WorkoutSession
     var compact = false
     @State private var now = Date()
 
     private var elapsed: TimeInterval {
-        max(now.timeIntervalSince(startDate), 0)
+        session.elapsed(at: now)
     }
 
     private var text: String {
         let totalSeconds = Int(elapsed)
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
-        return compact ? "\(minutes)m" : String(format: "%02d:%02d", minutes, seconds)
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     var body: some View {
