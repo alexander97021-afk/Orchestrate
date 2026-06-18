@@ -768,8 +768,8 @@ final class AthleteDataStore: ObservableObject {
         persistNutrition()
     }
 
-    func exerciseLog(cycleID: Int, day: String, exerciseID: String) -> ExerciseLog {
-        let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID)
+    func exerciseLog(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> ExerciseLog {
+        let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID, date: date)
         return exerciseLogs.first { $0.logKey == key } ?? ExerciseLog(
             logKey: key,
             setLogs: [],
@@ -784,9 +784,10 @@ final class AthleteDataStore: ObservableObject {
         exerciseID: String,
         setLogs: [ExerciseSetLog],
         note: String,
-        isDone: Bool
+        isDone: Bool,
+        date: Date = Date()
     ) {
-        let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID)
+        let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID, date: date)
         let log = ExerciseLog(
             logKey: key,
             setLogs: setLogs,
@@ -801,12 +802,12 @@ final class AthleteDataStore: ObservableObject {
         persistExerciseLogs()
     }
 
-    func completedExerciseCount(cycleID: Int, day: String, exerciseIDs: [String]) -> Int {
-        exerciseIDs.filter { exerciseLog(cycleID: cycleID, day: day, exerciseID: $0).isDone }.count
+    func completedExerciseCount(cycleID: Int, day: String, exerciseIDs: [String], date: Date = Date()) -> Int {
+        exerciseIDs.filter { exerciseLog(cycleID: cycleID, day: day, exerciseID: $0, date: date).isDone }.count
     }
 
-    func latestTrainingSummary(cycleID: Int, day: String, exerciseIDs: [String]) -> String {
-        let completed = completedExerciseCount(cycleID: cycleID, day: day, exerciseIDs: exerciseIDs)
+    func latestTrainingSummary(cycleID: Int, day: String, exerciseIDs: [String], date: Date = Date()) -> String {
+        let completed = completedExerciseCount(cycleID: cycleID, day: day, exerciseIDs: exerciseIDs, date: date)
         guard completed > 0 else { return "今天还未开始记录" }
         return "已完成 \(completed)/\(exerciseIDs.count) 个动作"
     }

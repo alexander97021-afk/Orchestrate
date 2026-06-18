@@ -169,6 +169,13 @@ private struct MealTemplate: Identifiable {
     let foods: [String]
 }
 
+private struct WorkoutSession: Identifiable, Equatable {
+    let id = UUID()
+    let cycleID: Int
+    let day: TrainingDay
+    let startDate: Date
+}
+
 private enum AthleteSeed {
     static let cycles: [WorkoutCycle] = [
         WorkoutCycle(
@@ -572,32 +579,76 @@ private enum AthleteSeed {
 }
 
 struct IOSRootView: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
     @State private var selectedTab: AthleteTab = .today
+    @State private var workoutSession: WorkoutSession?
+    @State private var isWorkoutSessionPresented = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            TodayDashboard(selectedTab: $selectedTab)
-                .tag(AthleteTab.today)
-                .tabItem { Label(AthleteTab.today.rawValue, systemImage: AthleteTab.today.systemImage) }
+        ZStack(alignment: .bottomTrailing) {
+            TabView(selection: $selectedTab) {
+                TodayDashboard {
+                    startTodayWorkout()
+                }
+                    .tag(AthleteTab.today)
+                    .tabItem { Label(AthleteTab.today.rawValue, systemImage: AthleteTab.today.systemImage) }
 
-            TrainingScreen()
-                .tag(AthleteTab.training)
-                .tabItem { Label(AthleteTab.training.rawValue, systemImage: AthleteTab.training.systemImage) }
+                TrainingScreen {
+                    startTodayWorkout()
+                }
+                    .tag(AthleteTab.training)
+                    .tabItem { Label(AthleteTab.training.rawValue, systemImage: AthleteTab.training.systemImage) }
 
-            NutritionScreen()
-                .tag(AthleteTab.nutrition)
-                .tabItem { Label(AthleteTab.nutrition.rawValue, systemImage: AthleteTab.nutrition.systemImage) }
+                NutritionScreen()
+                    .tag(AthleteTab.nutrition)
+                    .tabItem { Label(AthleteTab.nutrition.rawValue, systemImage: AthleteTab.nutrition.systemImage) }
 
-            ProgressScreen()
-                .tag(AthleteTab.progress)
-                .tabItem { Label(AthleteTab.progress.rawValue, systemImage: AthleteTab.progress.systemImage) }
+                ProgressScreen()
+                    .tag(AthleteTab.progress)
+                    .tabItem { Label(AthleteTab.progress.rawValue, systemImage: AthleteTab.progress.systemImage) }
 
-            TemplatesScreen()
-                .tag(AthleteTab.templates)
-                .tabItem { Label(AthleteTab.templates.rawValue, systemImage: AthleteTab.templates.systemImage) }
+                TemplatesScreen()
+                    .tag(AthleteTab.templates)
+                    .tabItem { Label(AthleteTab.templates.rawValue, systemImage: AthleteTab.templates.systemImage) }
+            }
+
+            if let workoutSession, !isWorkoutSessionPresented {
+                MinimizedWorkoutBubble(session: workoutSession) {
+                    isWorkoutSessionPresented = true
+                }
+                .padding(.trailing, 16)
+                .padding(.bottom, 72)
+            }
         }
         .tint(IOSTheme.accent)
         .preferredColorScheme(.dark)
+        .fullScreenCover(isPresented: $isWorkoutSessionPresented) {
+            if let workoutSession {
+                WorkoutSessionSheet(
+                    session: workoutSession,
+                    onMinimize: {
+                        isWorkoutSessionPresented = false
+                    },
+                    onFinish: {
+                        self.workoutSession = nil
+                        isWorkoutSessionPresented = false
+                    }
+                )
+            }
+        }
+    }
+
+    private func startTodayWorkout() {
+        // The session is deliberately root-owned so it can survive tab switches.
+        let cycleID = dataStore.todayPlan.cycleID
+        let day = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
+        guard day != .rest else { return }
+        if let current = workoutSession, current.cycleID == cycleID, current.day == day {
+            isWorkoutSessionPresented = true
+            return
+        }
+        workoutSession = WorkoutSession(cycleID: cycleID, day: day, startDate: Date())
+        isWorkoutSessionPresented = true
     }
 }
 
@@ -643,14 +694,14 @@ private struct AppScreen<Content: View>: View {
 
 private struct TodayDashboard: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
-    @Binding var selectedTab: AthleteTab
+    let onStartWorkout: () -> Void
 
     var body: some View {
         AppScreen(title: "今日", eyebrow: "今日训练与饮食") {
             TodayPlanPicker()
             HeroCard()
             DashboardGrid {
-                selectedTab = .training
+                onStartWorkout()
             }
         }
     }
@@ -816,6 +867,7 @@ private struct MealCompactCard: View {
 
 private struct TrainingScreen: View {
     @EnvironmentObject private var dataStore: AthleteDataStore
+    let onStartTodayWorkout: () -> Void
     @State private var selectedCycleID = 1
     @State private var selectedDay: TrainingDay = .back
     @State private var selectedCalendarDate = Date()
@@ -851,18 +903,35 @@ private struct TrainingScreen: View {
             } else if let selectedTemplate {
                 let exerciseIDs = selectedTemplate.exercises.map(\.id)
                 TrainingSummaryCard(
-                    title: "\(selectedCycle.name) · \(selectedDay.rawValue)",
+                    title: "\(Self.dayFormatter.string(from: selectedCalendarDate)) · \(selectedCycle.name) · \(selectedDay.rawValue)",
                     completed: dataStore.completedExerciseCount(
                         cycleID: selectedCycle.id,
                         day: selectedDay.rawValue,
-                        exerciseIDs: exerciseIDs
+                        exerciseIDs: exerciseIDs,
+                        date: selectedCalendarDate
                     ),
                     total: selectedTemplate.exercises.count
                 )
 
+                if Calendar.current.isDateInToday(selectedCalendarDate) {
+                    Button {
+                        dataStore.setTodayPlan(cycleID: selectedCycleID, trainingDay: selectedDay.rawValue)
+                        onStartTodayWorkout()
+                    } label: {
+                        Label("打开今日训练弹窗", systemImage: "play.fill")
+                            .font(.headline.weight(.heavy))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.black)
+                    .background(IOSTheme.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
                 VStack(spacing: 0) {
                     ForEach(selectedTemplate.exercises) { exercise in
-                        ExerciseRow(cycleID: selectedCycle.id, day: selectedDay, exercise: exercise)
+                        ExerciseRecapRow(cycleID: selectedCycle.id, day: selectedDay, exercise: exercise, date: selectedCalendarDate)
                         if exercise.id != selectedTemplate.exercises.last?.id {
                             Divider().overlay(IOSTheme.line)
                         }
@@ -884,6 +953,13 @@ private struct TrainingScreen: View {
             selectedDay = TrainingDay(rawValue: dataStore.todayPlan.trainingDay) ?? .back
         }
     }
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
 }
 
 private struct SaveDayPlanButton: View {
@@ -916,6 +992,227 @@ private struct SaveDayPlanButton: View {
         formatter.dateFormat = "M月d日"
         return formatter
     }()
+}
+
+private struct WorkoutSessionSheet: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    let session: WorkoutSession
+    let onMinimize: () -> Void
+    let onFinish: () -> Void
+
+    private var template: WorkoutDayTemplate? {
+        AthleteSeed.cycles
+            .first { $0.id == session.cycleID }?
+            .dayTemplates
+            .first { $0.day == session.day }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                IOSTheme.appBackground.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        WorkoutSessionHeader(session: session, template: template)
+
+                        if let template {
+                            VStack(spacing: 0) {
+                                ForEach(template.exercises) { exercise in
+                                    ExerciseRow(
+                                        cycleID: session.cycleID,
+                                        day: session.day,
+                                        exercise: exercise,
+                                        date: session.startDate
+                                    )
+                                    if exercise.id != template.exercises.last?.id {
+                                        Divider().overlay(IOSTheme.line)
+                                    }
+                                }
+                            }
+                            .athleteCard()
+                        } else {
+                            PlaceholderCard(
+                                title: "训练模板待补",
+                                description: "当前 Cycle 和训练日还没有动作模板。后续补充后会自动进入弹窗记录。"
+                            )
+                        }
+
+                        Button {
+                            onFinish()
+                        } label: {
+                            Label("结束训练", systemImage: "checkmark.circle.fill")
+                                .font(.headline.weight(.heavy))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.black)
+                        .background(IOSTheme.green)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 18)
+                }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") {
+                        dismissKeyboard()
+                    }
+                    .font(.headline)
+                    .foregroundStyle(IOSTheme.accent)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .safeAreaInset(edge: .top) {
+            HStack {
+                Button {
+                    onMinimize()
+                } label: {
+                    Label("最小化", systemImage: "arrow.down.right.and.arrow.up.left")
+                        .font(.caption.weight(.heavy))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(IOSTheme.surfaceRaised)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(IOSTheme.ink)
+
+                Spacer()
+
+                StatusPill("训练中", color: IOSTheme.green)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(IOSTheme.background.opacity(0.96))
+        }
+    }
+}
+
+private struct WorkoutSessionHeader: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    let session: WorkoutSession
+    let template: WorkoutDayTemplate?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                StatusPill("C\(session.cycleID)")
+                StatusPill(session.day.rawValue)
+                Spacer()
+                WorkoutDurationText(startDate: session.startDate)
+            }
+
+            Text("\(session.day.rawValue)日训练")
+                .font(.system(size: 28, weight: .heavy, design: .rounded))
+                .foregroundStyle(IOSTheme.ink)
+
+            Text(template.map { "\($0.exercises.count) 个动作 · \(dataStore.latestTrainingSummary(cycleID: session.cycleID, day: session.day.rawValue, exerciseIDs: $0.exercises.map(\.id), date: session.startDate))" } ?? "等待补充训练模板")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(IOSTheme.softInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .athleteCard(border: IOSTheme.accent.opacity(0.25), fill: IOSTheme.surfaceRaised)
+    }
+}
+
+private struct MinimizedWorkoutBubble: View {
+    let session: WorkoutSession
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Text(session.day.rawValue)
+                    .font(.headline.weight(.heavy))
+                WorkoutDurationText(startDate: session.startDate, compact: true)
+            }
+            .foregroundStyle(Color.black)
+            .frame(width: 78, height: 78)
+            .background(IOSTheme.accent)
+            .clipShape(Circle())
+            .shadow(color: Color.black.opacity(0.35), radius: 14, x: 0, y: 8)
+            .overlay(
+                Circle()
+                    .stroke(IOSTheme.ink.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct WorkoutDurationText: View {
+    let startDate: Date
+    var compact = false
+    @State private var now = Date()
+
+    private var elapsed: TimeInterval {
+        max(now.timeIntervalSince(startDate), 0)
+    }
+
+    private var text: String {
+        let totalSeconds = Int(elapsed)
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return compact ? "\(minutes)m" : String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    var body: some View {
+        Text(text)
+            .font(compact ? .caption2.weight(.heavy) : .caption.weight(.heavy))
+            .monospacedDigit()
+            .foregroundStyle(compact ? Color.black.opacity(0.82) : IOSTheme.accent)
+            .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { value in
+                now = value
+            }
+    }
+}
+
+private struct ExerciseRecapRow: View {
+    @EnvironmentObject private var dataStore: AthleteDataStore
+    let cycleID: Int
+    let day: TrainingDay
+    let exercise: ExerciseTemplate
+    let date: Date
+
+    private var log: ExerciseLog {
+        dataStore.exerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id, date: date)
+    }
+
+    private var completedSets: Int {
+        log.setLogs.filter(\.isDone).count
+    }
+
+    private var recordedSets: Int {
+        log.setLogs.filter { !$0.weightText.isEmpty || !$0.repsText.isEmpty || $0.isDone }.count
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(exercise.name)
+                        .font(.headline)
+                        .foregroundStyle(IOSTheme.ink)
+                    Text("\(exercise.reps) · \(exercise.target)")
+                        .font(.caption)
+                        .foregroundStyle(IOSTheme.softInk)
+                }
+                Spacer()
+                StatusPill(log.isDone ? "完成" : recordedSets > 0 ? "进行中" : "未开始", color: log.isDone ? IOSTheme.green : recordedSets > 0 ? IOSTheme.amber : IOSTheme.softInk)
+            }
+
+            Text("已记录 \(recordedSets) 组 · 完成 \(completedSets) 组\(log.note.isEmpty ? "" : " · \(log.note)")")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(IOSTheme.softInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 10)
+    }
 }
 
 private struct CalendarDaySlot: Identifiable {
@@ -2152,6 +2449,7 @@ private struct ExerciseRow: View {
     let cycleID: Int
     let day: TrainingDay
     let exercise: ExerciseTemplate
+    let date: Date
     @State private var setLogs: [ExerciseSetLog] = []
     @State private var note = ""
     @State private var isDone = false
@@ -2316,7 +2614,7 @@ private struct ExerciseRow: View {
     }
 
     private func syncFromStore() {
-        let log = dataStore.exerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id)
+        let log = dataStore.exerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id, date: date)
         setLogs = mergedSetLogs(stored: log.setLogs)
         note = log.note
         isDone = log.isDone || (!setLogs.isEmpty && setLogs.allSatisfy(\.isDone))
@@ -2338,7 +2636,8 @@ private struct ExerciseRow: View {
             exerciseID: exercise.id,
             setLogs: setLogs,
             note: note,
-            isDone: isDone
+            isDone: isDone,
+            date: date
         )
         if dismiss {
             dismissKeyboard()
@@ -2916,12 +3215,12 @@ private struct SectionHeader: View {
 }
 
 #Preview("Today") {
-    TodayDashboard(selectedTab: .constant(.today))
+    TodayDashboard {}
         .environmentObject(AthleteDataStore(defaults: .standard))
 }
 
 #Preview("Training") {
-    TrainingScreen()
+    TrainingScreen {}
         .environmentObject(AthleteDataStore(defaults: .standard))
 }
 
