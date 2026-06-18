@@ -1885,6 +1885,8 @@ private struct ProgressScreen: View {
 
             WeightChart(points: dataStore.chartPoints)
 
+            RecentBodyRecords(entries: Array(dataStore.recentBodyEntries.prefix(14)))
+
             VStack(spacing: 0) {
                 MetricRow(
                     title: "体重趋势",
@@ -1909,6 +1911,45 @@ private struct ProgressScreen: View {
             weightText = dataStore.todayEntry?.weightKg.map { String(format: "%.1f", $0) } ?? ""
             waistText = dataStore.todayEntry?.waistCm.map { String(format: "%.1f", $0) } ?? ""
         }
+    }
+}
+
+private struct RecentBodyRecords: View {
+    let entries: [BodyEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader("最近身体记录", action: "\(entries.count) 条")
+            if entries.isEmpty {
+                Text("暂无历史体重记录")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(IOSTheme.softInk)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(entries) { entry in
+                        HStack {
+                            Text(entry.dateString)
+                                .font(.caption.weight(.heavy))
+                                .foregroundStyle(IOSTheme.ink)
+                            Spacer()
+                            Text(entry.weightKg.map { String(format: "%.1fkg", $0) } ?? "--")
+                                .font(.caption.weight(.heavy))
+                                .foregroundStyle(IOSTheme.softInk)
+                            Text(entry.waistCm.map { String(format: "%.1fcm", $0) } ?? "--")
+                                .font(.caption.weight(.heavy))
+                                .foregroundStyle(IOSTheme.softInk)
+                                .frame(width: 62, alignment: .trailing)
+                        }
+                        .padding(.vertical, 9)
+                        if entry.id != entries.last?.id {
+                            Divider().overlay(IOSTheme.line)
+                        }
+                    }
+                }
+            }
+        }
+        .athleteCard()
     }
 }
 
@@ -2115,6 +2156,19 @@ private struct ExerciseRow: View {
     @State private var note = ""
     @State private var isDone = false
 
+    private var movementNames: [String] {
+        guard exercise.isCombo else { return [exercise.name] }
+        let parts = exercise.name
+            .components(separatedBy: "+")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? [exercise.name] : parts
+    }
+
+    private var setsPerMovement: Int {
+        max(exercise.setTargets.count, 1)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
@@ -2135,35 +2189,44 @@ private struct ExerciseRow: View {
                 .font(.caption)
                 .foregroundStyle(IOSTheme.softInk)
 
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 8) {
-                    Text("组")
-                        .frame(width: 34, alignment: .leading)
-                    Text("目标")
-                        .frame(width: 58, alignment: .leading)
-                    Text("重量")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("次数")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("")
-                        .frame(width: 30)
+            if exercise.isCombo {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(movementNames.indices, id: \.self) { movementIndex in
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(movementNames[movementIndex])
+                                .font(.caption.weight(.heavy))
+                                .foregroundStyle(IOSTheme.accent)
+                            trainingSetHeader
+                            ForEach(exercise.setTargets.indices, id: \.self) { setIndex in
+                                TrainingSetLogRow(
+                                    index: setIndex,
+                                    setLog: bindingForSet(movementIndex: movementIndex, setIndex: setIndex)
+                                ) {
+                                    saveDraft()
+                                }
+                            }
+                        }
+                        .padding(8)
+                        .background(IOSTheme.background.opacity(0.46))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 }
-                .font(.caption2.weight(.heavy))
-                .foregroundStyle(IOSTheme.softInk)
-
-                ForEach(setLogs.indices, id: \.self) { index in
-                    TrainingSetLogRow(
-                        index: index,
-                        setLog: Binding(
-                            get: { setLogs[index] },
-                            set: { setLogs[index] = $0 }
-                        )
-                    )
+            } else {
+                VStack(alignment: .leading, spacing: 7) {
+                    trainingSetHeader
+                    ForEach(exercise.setTargets.indices, id: \.self) { index in
+                        TrainingSetLogRow(
+                            index: index,
+                            setLog: bindingForSet(movementIndex: 0, setIndex: index)
+                        ) {
+                            saveDraft()
+                        }
+                    }
                 }
+                .padding(8)
+                .background(IOSTheme.background.opacity(0.46))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
-            .padding(8)
-            .background(IOSTheme.background.opacity(0.46))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             TextField("备注，例如最后一组状态 / 动作感觉", text: $note)
                 .font(.caption.weight(.semibold))
@@ -2187,7 +2250,6 @@ private struct ExerciseRow: View {
                         )
                     }
                     save()
-                    dismissKeyboard()
                 } label: {
                     Label(isDone ? "已完成" : "标记完成", systemImage: isDone ? "checkmark.circle.fill" : "circle")
                         .font(.caption.weight(.heavy))
@@ -2216,9 +2278,41 @@ private struct ExerciseRow: View {
         }
         .padding(.vertical, 10)
         .onAppear(perform: syncFromStore)
-        .onChange(of: dataStore.exerciseLogs) { _ in
-            syncFromStore()
+        .onChange(of: note) { _ in
+            saveDraft()
         }
+    }
+
+    private var trainingSetHeader: some View {
+        HStack(spacing: 8) {
+            Text("组")
+                .frame(width: 34, alignment: .leading)
+            Text("目标")
+                .frame(width: 58, alignment: .leading)
+            Text("重量")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("次数")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("")
+                .frame(width: 30)
+        }
+        .font(.caption2.weight(.heavy))
+        .foregroundStyle(IOSTheme.softInk)
+    }
+
+    private func bindingForSet(movementIndex: Int, setIndex: Int) -> Binding<ExerciseSetLog> {
+        Binding(
+            get: {
+                let index = flatIndex(movementIndex: movementIndex, setIndex: setIndex)
+                return setLogs.indices.contains(index) ? setLogs[index] : fallbackSetLog(movementIndex: movementIndex, setIndex: setIndex)
+            },
+            set: { newValue in
+                let index = flatIndex(movementIndex: movementIndex, setIndex: setIndex)
+                guard setLogs.indices.contains(index) else { return }
+                setLogs[index] = newValue
+                saveDraft()
+            }
+        )
     }
 
     private func syncFromStore() {
@@ -2228,7 +2322,15 @@ private struct ExerciseRow: View {
         isDone = log.isDone || (!setLogs.isEmpty && setLogs.allSatisfy(\.isDone))
     }
 
+    private func saveDraft() {
+        save(dismiss: false)
+    }
+
     private func save() {
+        save(dismiss: true)
+    }
+
+    private func save(dismiss: Bool) {
         isDone = !setLogs.isEmpty && setLogs.allSatisfy(\.isDone)
         dataStore.saveExerciseLog(
             cycleID: cycleID,
@@ -2238,26 +2340,52 @@ private struct ExerciseRow: View {
             note: note,
             isDone: isDone
         )
+        if dismiss {
+            dismissKeyboard()
+        }
     }
 
     private func mergedSetLogs(stored: [ExerciseSetLog]) -> [ExerciseSetLog] {
         let targets = exercise.setTargets
-        return targets.indices.map { index in
-            let storedSet = index < stored.count ? stored[index] : nil
+        let totalCount = exercise.isCombo ? movementNames.count * targets.count : targets.count
+        return (0..<totalCount).map { index in
+            let movementIndex = exercise.isCombo ? index / setsPerMovement : 0
+            let setIndex = exercise.isCombo ? index % setsPerMovement : index
+            let expectedID = setID(movementIndex: movementIndex, setIndex: setIndex)
+            let storedSet = stored.first { $0.id == expectedID } ?? (index < stored.count ? stored[index] : nil)
             return ExerciseSetLog(
-                id: "set-\(index + 1)",
-                targetReps: targets[index],
+                id: expectedID,
+                targetReps: targets[setIndex],
                 weightText: storedSet?.weightText ?? "",
                 repsText: storedSet?.repsText ?? "",
                 isDone: storedSet?.isDone ?? false
             )
         }
     }
+
+    private func flatIndex(movementIndex: Int, setIndex: Int) -> Int {
+        exercise.isCombo ? movementIndex * setsPerMovement + setIndex : setIndex
+    }
+
+    private func setID(movementIndex: Int, setIndex: Int) -> String {
+        exercise.isCombo ? "movement-\(movementIndex + 1)-set-\(setIndex + 1)" : "set-\(setIndex + 1)"
+    }
+
+    private func fallbackSetLog(movementIndex: Int, setIndex: Int) -> ExerciseSetLog {
+        ExerciseSetLog(
+            id: setID(movementIndex: movementIndex, setIndex: setIndex),
+            targetReps: exercise.setTargets[setIndex],
+            weightText: "",
+            repsText: "",
+            isDone: false
+        )
+    }
 }
 
 private struct TrainingSetLogRow: View {
     let index: Int
     @Binding var setLog: ExerciseSetLog
+    let onChange: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2285,7 +2413,7 @@ private struct TrainingSetLogRow: View {
 
             Button {
                 setLog.isDone.toggle()
-                dismissKeyboard()
+                onChange()
             } label: {
                 Image(systemName: setLog.isDone ? "checkmark.circle.fill" : "circle")
                     .font(.title3)

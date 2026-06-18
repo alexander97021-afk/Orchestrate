@@ -391,6 +391,12 @@ final class AthleteDataStore: ObservableObject {
         entry(for: Date())
     }
 
+    var recentBodyEntries: [BodyEntry] {
+        bodyEntries
+            .filter { $0.weightKg != nil || $0.waistCm != nil }
+            .sorted { $0.dateString > $1.dateString }
+    }
+
     var latestWeight: Double? {
         bodyEntries
             .sorted { $0.dateString > $1.dateString }
@@ -987,6 +993,49 @@ final class AthleteDataStore: ObservableObject {
         } else {
             todayPlan = TodayPlan(cycleID: 1, trainingDay: "背")
         }
+
+        syncTodayPlanWithCalendar()
+    }
+
+    private func syncTodayPlanWithCalendar() {
+        let todayKey = Self.dateFormatter.string(from: Date())
+        if let todayEntry = trainingCalendarEntries.first(where: { $0.dateString == todayKey }) {
+            todayPlan = TodayPlan(
+                cycleID: todayEntry.cycleID,
+                trainingDay: todayEntry.trainingDay,
+                phaseID: todayPlan.phaseID,
+                recipeVariantID: todayPlan.recipeVariantID,
+                calorieAdjustmentID: todayPlan.calorieAdjustmentID,
+                dayModeID: todayPlan.dayModeID
+            )
+            persistTodayPlan()
+            return
+        }
+
+        let sequence = ["肩", "背", "胸", "腿"]
+        guard let latest = trainingCalendarEntries
+            .filter({ $0.dateString < todayKey && sequence.contains($0.trainingDay) })
+            .sorted(by: { $0.dateString > $1.dateString })
+            .first,
+              let latestDate = Self.dateFormatter.date(from: latest.dateString),
+              let latestIndex = sequence.firstIndex(of: latest.trainingDay)
+        else {
+            return
+        }
+
+        let dayDelta = max(calendar.dateComponents([.day], from: calendar.startOfDay(for: latestDate), to: calendar.startOfDay(for: Date())).day ?? 0, 0)
+        guard dayDelta > 0 else { return }
+        let nextDay = sequence[(latestIndex + dayDelta) % sequence.count]
+        todayPlan = TodayPlan(
+            cycleID: latest.cycleID,
+            trainingDay: nextDay,
+            phaseID: todayPlan.phaseID,
+            recipeVariantID: todayPlan.recipeVariantID,
+            calorieAdjustmentID: todayPlan.calorieAdjustmentID,
+            dayModeID: todayPlan.dayModeID
+        )
+        saveTrainingCalendarEntry(date: Date(), cycleID: latest.cycleID, trainingDay: nextDay)
+        persistTodayPlan()
     }
 
     private func persist() {
