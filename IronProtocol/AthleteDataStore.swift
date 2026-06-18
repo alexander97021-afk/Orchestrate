@@ -1511,7 +1511,7 @@ final class AthleteDataStore: ObservableObject {
         food("low-fat-milk", "低脂牛奶", .dairy, .ml, 100, 50, 3.4, 5, 1.5),
         food("plain-yogurt", "无糖酸奶", .dairy, .g, 100, 65, 5, 6, 2, brandSensitive: true),
         food("greek-yogurt", "希腊酸奶", .dairy, .g, 100, 80, 10, 4, 2, brandSensitive: true),
-        food("mixed-vegetables", "蔬菜", .vegetable, .g, 100, 30, 2, 6, 0, notes: "通用蔬菜估算"),
+        food("mixed-vegetables", "蔬菜", .vegetable, .g, 100, 18, 1.2, 3.2, 0.2, notes: "小白菜 / 芹菜 / 西红柿平均估算"),
         food("broccoli", "西兰花", .vegetable, .g, 100, 35, 3, 7, 0, notes: "生重"),
         food("spinach", "菠菜", .vegetable, .g, 100, 25, 3, 4, 0, notes: "生重"),
         food("lettuce", "生菜", .vegetable, .g, 100, 15, 1, 3, 0, notes: "生重"),
