@@ -430,6 +430,64 @@ private enum AthleteSeed {
                     exercise("c4-legs-seated-calf-raise", "坐姿提踵", "12 / 10 / 8", note: "小腿")
                 ])
             ]
+        ),
+        WorkoutCycle(
+            id: 5,
+            name: "C5",
+            dayTemplates: [
+                WorkoutDayTemplate(day: .shoulders, exercises: [
+                    exercise("c5-shoulder-front-gachi-press", "坐姿杠铃颈前嘎吱推举", "20 / 16 / 12 / 10 / 8", note: "拉丝"),
+                    exercise("c5-shoulder-db-overhead-lateral-reverse-front-raise", "哑铃过头侧平举 + 反手杠铃前上举", "12 / 10 / 8", note: "中束，前束", combo: true),
+                    exercise("c5-shoulder-wide-grip-upright-row", "站姿杠铃宽握提拉", "15 / 12 / 10 / 8", note: "中束"),
+                    exercise("c5-shoulder-bent-single-arm-side-pull", "俯身单臂侧拉", "12 / 10 / 8", note: "后束"),
+                    exercise("c5-shoulder-seated-low-cable-rear-raise", "坐姿低位拉力器后拉翻举", "15 / 12 / 10 / 8", note: "后束"),
+                    exercise("c5-shoulder-rear-fly-upper-external", "俯身哑铃飞鸟上翻举 + 俯身哑铃旋外举", "12 / 10 / 8", note: "后束", combo: true),
+                    exercise("c5-shoulder-bent-wide-barbell-front-raise", "俯身杠铃宽握前平举", "15 / 12 / 10 / 8", note: "中束，后束分界线"),
+                    exercise("c5-shoulder-bent-low-cable-retraction-shrug", "俯身低位拉力器后缩肩", "12 / 10 / 8", note: "斜方肌中部"),
+                    exercise("c5-shoulder-pulldown-shrug", "高位下拉耸肩", "12 / 10 / 8", note: "斜方肌下部"),
+                    exercise("c5-shoulder-behind-back-barbell-shrug", "身后杠铃耸肩", "12 / 10 / 8", note: "斜方肌上部"),
+                    exercise("c5-shoulder-lying-leg-raise", "仰卧抬腿", "30 / 25 / 20", note: "腹直肌下部")
+                ]),
+                WorkoutDayTemplate(day: .back, exercises: [
+                    exercise("c5-back-pronated-wide-pullup", "正手大宽距离引体向上", "15 / 12 / 10 / 8", note: "背阔肌上部外侧"),
+                    exercise("c5-back-neutral-pullup", "对握引体向上", "15 / 12 / 10 / 8", note: "背阔肌中部"),
+                    exercise("c5-back-prone-incline-single-arm-side-pulldown", "俯卧上斜单臂拉力器侧屈下拉", "12 / 10 / 8", note: "背阔肌下部"),
+                    exercise("c5-back-single-arm-high-side-pulldown", "单臂高位侧屈下拉", "12 / 10 / 8", note: "背阔肌下部"),
+                    exercise("c5-back-tbar-row", "俯身 T 杠划船", "15 / 12 / 10 / 8", note: "菱形肌"),
+                    exercise("c5-back-v-handle-lean-pulldown", "V 把沉肩后仰下拉", "12 / 10 / 8", note: "圣诞树"),
+                    exercise("c5-back-look-around-hyperextension", "左顾右盼山羊挺身", "15 / 12 / 10 / 8", note: "竖脊肌"),
+                    exercise("c5-back-preacher-curl", "牧师凳弯举", "12 / 10 / 8", note: "肱二长头"),
+                    exercise("c5-back-overhead-curl", "过头弯举", "12 / 10 / 8", note: "肱二上端"),
+                    exercise("c5-back-behind-head-cable-curl", "拉力器头后弯举", "12 / 10 / 8", note: "肱二肌峰"),
+                    exercise("c5-back-rope-curl", "绳索弯举", "12 / 10 / 8", note: "肱肌")
+                ]),
+                WorkoutDayTemplate(day: .chest, exercises: [
+                    exercise("c5-chest-incline-gachi-bench", "上斜杠铃嘎吱卧推", "20 / 16 / 12 / 10 / 8", note: "拉丝"),
+                    exercise("c5-chest-flat-db-internal-outward-press", "平板哑铃内旋卧推 + 平板哑铃向外推胸", "12 / 10 / 8", combo: true),
+                    exercise("c5-chest-decline-barbell-bench", "下斜杠铃卧推", "15 / 12 / 10 / 8", note: "下部"),
+                    exercise("c5-chest-dip", "双杠臂屈伸", "15 / 12 / 10 / 8", note: "下部"),
+                    exercise("c5-chest-cable-press", "拉力器推胸", "12 / 10 / 8", note: "下部"),
+                    exercise("c5-chest-reverse-tbar-press", "反向 T 杠推胸", "12 / 10 / 8", note: "中缝儿"),
+                    exercise("c5-chest-lying-barbell-extension", "仰卧杠铃臂屈伸", "12 / 10 / 8", note: "肱三长头"),
+                    exercise("c5-chest-seated-behind-neck-barbell-extension", "坐姿杠铃颈后臂屈伸", "12 / 10 / 8", note: "肱三外侧头"),
+                    exercise("c5-chest-rope-pressdown-horizontal-abduction", "绳索下压水平外展", "15 / 12 / 10 / 8", note: "肱三斜切线"),
+                    exercise("c5-chest-dual-handle-reverse-pressdown", "双把手反手下压", "15 / 12 / 10 / 8", note: "肱三内侧头"),
+                    exercise("c5-chest-weighted-crunch", "负重卷腹", "30 / 25 / 20", note: "腹直肌上部"),
+                    exercise("c5-chest-lying-twist-crunch", "仰卧转体卷腹", "30 / 25 / 20", note: "腹外斜肌")
+                ]),
+                WorkoutDayTemplate(day: .legs, exercises: [
+                    exercise("c5-legs-prone-curl-barbell-stiff-deadlift", "俯卧腿弯举 + 杠铃直腿硬拉", "12 / 10 / 8", note: "腘绳肌中上部", combo: true),
+                    exercise("c5-legs-standing-single-leg-curl", "站姿单腿弯举", "12 / 10 / 8", note: "腘绳肌下端"),
+                    exercise("c5-legs-bent-knee-hyperextension", "屈膝山羊挺身", "12 / 10 / 8", note: "臀线"),
+                    exercise("c5-legs-prone-straight-leg-hip-abduction", "俯卧直腿髋外展", "12 / 10 / 8", note: "臀部上端"),
+                    exercise("c5-legs-sumo-deadlift", "相扑硬拉", "15 / 12 / 10 / 8", note: "臀大肌"),
+                    exercise("c5-legs-back-squat-leg-extension", "杠铃颈后深蹲 + 坐姿腿屈伸", "15 / 12 / 10 / 8", note: "股四整体，分离度", combo: true),
+                    exercise("c5-legs-narrow-leg-press", "并腿倒蹬", "15 / 12 / 10 / 8", note: "股四内侧头"),
+                    exercise("c5-legs-hip-thrust-squat", "挺髋蹲", "12 / 10 / 8", note: "腹直肌"),
+                    exercise("c5-legs-seated-hip-adduction", "坐姿髋内收", "30 / 25 / 20", note: "内收肌"),
+                    exercise("c5-legs-duck-walk", "矮子步", "3 组，每组单侧 50 步", note: "整体")
+                ])
+            ]
         )
     ]
 
