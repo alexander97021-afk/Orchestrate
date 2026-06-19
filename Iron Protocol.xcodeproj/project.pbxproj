@@ -12,6 +12,7 @@
 		OR0100000000000000000003 /* IronProtocol/Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000003 /* IronProtocol/Views.swift */; };
 		OR0100000000000000000004 /* IronProtocol/AthleteDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */; };
 		OR0100000000000000000005 /* IronProtocol/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000007 /* IronProtocol/Assets.xcassets */; };
+		OR0100000000000000000006 /* IronProtocol/HealthDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = OR0200000000000000000008 /* IronProtocol/HealthDataStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +22,8 @@
 		OR0200000000000000000005 /* Iron Protocol.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Iron Protocol.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/AthleteDataStore.swift; sourceTree = "<group>"; };
 		OR0200000000000000000007 /* IronProtocol/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = IronProtocol/Assets.xcassets; sourceTree = "<group>"; };
+		OR0200000000000000000008 /* IronProtocol/HealthDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IronProtocol/HealthDataStore.swift; sourceTree = "<group>"; };
+		OR0200000000000000000009 /* IronProtocol/IronProtocol.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = IronProtocol/IronProtocol.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,8 +51,10 @@
 				OR0200000000000000000001 /* IronProtocol/IronProtocolApp.swift */,
 				OR0200000000000000000002 /* IronProtocol/IOSTheme.swift */,
 				OR0200000000000000000006 /* IronProtocol/AthleteDataStore.swift */,
+				OR0200000000000000000008 /* IronProtocol/HealthDataStore.swift */,
 				OR0200000000000000000003 /* IronProtocol/Views.swift */,
 				OR0200000000000000000007 /* IronProtocol/Assets.xcassets */,
+				OR0200000000000000000009 /* IronProtocol/IronProtocol.entitlements */,
 			);
 			sourceTree = "<group>";
 		};
@@ -93,6 +98,11 @@
 				TargetAttributes = {
 					OR0500000000000000000001 = {
 						CreatedOnToolsVersion = 15.3;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -133,6 +143,7 @@
 				OR0100000000000000000001 /* IronProtocol/IronProtocolApp.swift in Sources */,
 				OR0100000000000000000002 /* IronProtocol/IOSTheme.swift in Sources */,
 				OR0100000000000000000004 /* IronProtocol/AthleteDataStore.swift in Sources */,
+				OR0100000000000000000006 /* IronProtocol/HealthDataStore.swift in Sources */,
 				OR0100000000000000000003 /* IronProtocol/Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -261,6 +272,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = IronProtocol/IronProtocol.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 448AMBY24P;
 				ENABLE_PREVIEWS = YES;
@@ -268,6 +280,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_KEY_CFBundleDisplayName = "Iron Protocol";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Iron Protocol 需要读取步数、睡眠、心率和活动数据，用于训练恢复、执行趋势和身体管理分析。";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -292,6 +305,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = IronProtocol/IronProtocol.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 448AMBY24P;
 				ENABLE_PREVIEWS = YES;
@@ -299,6 +313,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_KEY_CFBundleDisplayName = "Iron Protocol";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Iron Protocol 需要读取步数、睡眠、心率和活动数据，用于训练恢复、执行趋势和身体管理分析。";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

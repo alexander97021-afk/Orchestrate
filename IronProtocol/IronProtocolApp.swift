@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct IronProtocolApp: App {
     @StateObject private var dataStore = AthleteDataStore()
+    @StateObject private var healthStore = HealthDataStore()
     @State private var showSplash = true
 
     var body: some Scene {
@@ -10,6 +11,7 @@ struct IronProtocolApp: App {
             ZStack {
                 IOSRootView()
                     .environmentObject(dataStore)
+                    .environmentObject(healthStore)
                     .opacity(showSplash ? 0 : 1)
 
                 if showSplash {

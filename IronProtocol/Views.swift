@@ -2319,6 +2319,8 @@ private struct ProgressScreen: View {
                 RecordBox(title: "本周腰围", value: dataStore.formattedWaist(dataStore.latestWaist), note: "每周一次")
             }
 
+            HealthSyncCard()
+
             WeightChart(points: dataStore.chartPoints)
 
             RecentBodyRecords(entries: Array(dataStore.recentBodyEntries.prefix(14)))
@@ -2347,6 +2349,115 @@ private struct ProgressScreen: View {
             weightText = dataStore.todayEntry?.weightKg.map { String(format: "%.1f", $0) } ?? ""
             waistText = dataStore.todayEntry?.waistCm.map { String(format: "%.1f", $0) } ?? ""
         }
+    }
+}
+
+private struct HealthSyncCard: View {
+    @EnvironmentObject private var healthStore: HealthDataStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Apple 健康")
+                        .font(.headline.weight(.heavy))
+                        .foregroundStyle(IOSTheme.ink)
+                    Text(healthStore.statusMessage)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(IOSTheme.softInk)
+                }
+                Spacer()
+                StatusPill(healthStore.isAuthorized ? "已连接" : "未连接", color: healthStore.isAuthorized ? IOSTheme.green : IOSTheme.amber)
+            }
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                HealthMetricBox(title: "今日步数", value: "\(Int(healthStore.snapshot.steps.rounded()))", note: "Steps")
+                HealthMetricBox(title: "距离", value: formatDistance(healthStore.snapshot.distanceMeters), note: "步行 / 跑步")
+                HealthMetricBox(title: "活动消耗", value: "\(Int(healthStore.snapshot.activeEnergyKcal.rounded())) kcal", note: "Active Energy")
+                HealthMetricBox(title: "睡眠", value: formatMinutes(healthStore.snapshot.sleepMinutes), note: healthStore.snapshot.inBedMinutes > 0 ? "卧床 \(formatMinutes(healthStore.snapshot.inBedMinutes))" : "昨晚")
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    Task { await healthStore.requestAuthorizationAndRefresh() }
+                } label: {
+                    Label(healthStore.isAuthorized ? "重新授权" : "连接 Apple 健康", systemImage: "heart.text.square")
+                        .font(.caption.weight(.heavy))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.black)
+                .background(IOSTheme.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .disabled(healthStore.isLoading)
+
+                Button {
+                    Task { await healthStore.refresh() }
+                } label: {
+                    Label("刷新", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.heavy))
+                        .frame(width: 82)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(IOSTheme.ink)
+                .background(IOSTheme.surfaceRaised)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .disabled(healthStore.isLoading || !healthStore.isAvailable)
+            }
+
+            if let lastUpdated = healthStore.snapshot.lastUpdated {
+                Text("最近同步 \(lastUpdated.formatted(date: .omitted, time: .shortened))")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(IOSTheme.softInk)
+            }
+        }
+        .athleteCard()
+        .task {
+            await healthStore.refreshIfPreviouslyAuthorized()
+        }
+    }
+
+    private func formatDistance(_ meters: Double) -> String {
+        if meters >= 1000 {
+            return String(format: "%.1f km", meters / 1000)
+        }
+        return "\(Int(meters.rounded())) m"
+    }
+
+    private func formatMinutes(_ minutes: Double) -> String {
+        guard minutes > 0 else { return "--" }
+        let total = Int(minutes.rounded())
+        return "\(total / 60)h \(total % 60)m"
+    }
+}
+
+private struct HealthMetricBox: View {
+    let title: String
+    let value: String
+    let note: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(IOSTheme.softInk)
+            Text(value)
+                .font(.headline.weight(.heavy))
+                .foregroundStyle(IOSTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Text(note)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(IOSTheme.softInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(IOSTheme.background.opacity(0.48))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -2753,10 +2864,32 @@ private struct ExerciseRow: View {
     }
 
     private func syncFromStore() {
+        if let todayLog = dataStore.storedExerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id, date: date) {
+            setLogs = mergedSetLogs(stored: todayLog.setLogs)
+            note = todayLog.note
+            isDone = todayLog.isDone || (!setLogs.isEmpty && setLogs.allSatisfy(\.isDone))
+            return
+        }
+
+        if let previousLog = dataStore.latestPreviousExerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id, before: date) {
+            setLogs = mergedSetLogs(stored: previousLog.setLogs).map {
+                ExerciseSetLog(
+                    id: $0.id,
+                    targetReps: $0.targetReps,
+                    weightText: $0.weightText,
+                    repsText: $0.repsText,
+                    isDone: false
+                )
+            }
+            note = ""
+            isDone = false
+            return
+        }
+
         let log = dataStore.exerciseLog(cycleID: cycleID, day: day.rawValue, exerciseID: exercise.id, date: date)
         setLogs = mergedSetLogs(stored: log.setLogs)
         note = log.note
-        isDone = log.isDone || (!setLogs.isEmpty && setLogs.allSatisfy(\.isDone))
+        isDone = false
     }
 
     private func saveDraft() {

@@ -770,12 +770,31 @@ final class AthleteDataStore: ObservableObject {
 
     func exerciseLog(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> ExerciseLog {
         let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID, date: date)
-        return exerciseLogs.first { $0.logKey == key } ?? ExerciseLog(
+        return storedExerciseLog(cycleID: cycleID, day: day, exerciseID: exerciseID, date: date) ?? ExerciseLog(
             logKey: key,
             setLogs: [],
             note: "",
             isDone: false
         )
+    }
+
+    func storedExerciseLog(cycleID: Int, day: String, exerciseID: String, date: Date = Date()) -> ExerciseLog? {
+        let key = exerciseLogKey(cycleID: cycleID, day: day, exerciseID: exerciseID, date: date)
+        return exerciseLogs.first { $0.logKey == key }
+    }
+
+    func latestPreviousExerciseLog(cycleID: Int, day: String, exerciseID: String, before date: Date = Date()) -> ExerciseLog? {
+        let currentDateKey = Self.dateFormatter.string(from: date)
+        let keySuffix = "|cycle-\(cycleID)|\(day)|\(exerciseID)"
+        return exerciseLogs
+            .filter { log in
+                guard log.logKey.hasSuffix(keySuffix),
+                      let dateKey = log.logKey.split(separator: "|").first
+                else { return false }
+                return String(dateKey) < currentDateKey
+            }
+            .sorted { $0.logKey > $1.logKey }
+            .first
     }
 
     func saveExerciseLog(
